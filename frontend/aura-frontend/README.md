@@ -3,6 +3,9 @@
 Interfaz web del sistema Aura — Asistente IA para PyMEs.
 Desarrollado con React 18.
 
+> Este servicio forma parte del monorepo **AURA**.  
+> Para levantar todo el stack: `docker compose up -d` en la raíz del proyecto.
+
 ---
 
 ## Tecnologías
@@ -35,9 +38,14 @@ src/
 
 ## Requisitos previos
 
+### Opción 1 — Docker (recomendada)
+- Docker y Docker Compose instalados
+- Ejecutar `docker compose up -d` desde la raíz del monorepo
+
+### Opción 2 — Desarrollo local
 - Node.js 18 o superior
-- Spring Boot corriendo en localhost:8080
-- FastAPI corriendo en localhost:8000
+- Backend en `http://localhost:8080`
+- FastAPI en `http://localhost:8000`
 
 ---
 
@@ -51,11 +59,15 @@ npm install
 
 ## Correr el proyecto
 
+### Con Docker
+El frontend se sirve vía Nginx en `http://localhost:3000`.
+
+### Desarrollo local
 ```bash
 npm start
 ```
 
-Se abre automáticamente en http://localhost:3000
+Se abre automáticamente en `http://localhost:3000`.
 
 ---
 
@@ -66,8 +78,8 @@ Se abre automáticamente en http://localhost:3000
 | ADMIN    | Panel de administración + Chat  |
 | EMPLEADO | Solo Chat                       |
 
-El primer usuario ADMIN debe crearse directamente desde Postman
-o desde el endpoint `/auth/register` antes de deshabilitar el registro.
+El primer usuario ADMIN se crea automáticamente al iniciar el backend
+(usuario: `Admin`, contraseña: `admin123`).
 A partir de ahí, el ADMIN crea los demás usuarios desde el panel.
 
 ---
@@ -84,14 +96,13 @@ A partir de ahí, el ADMIN crea los demás usuarios desde el panel.
 
 ## Conexión con el backend
 
-El frontend se conecta a Spring Boot en `http://localhost:8080`.
-Para cambiarlo, modificá `src/api/axios.js`:
+El frontend se conecta al backend Spring Boot. La URL se configura mediante
+la variable de entorno `REACT_APP_API_URL`:
 
-```javascript
-const api = axios.create({
-  baseURL: 'http://localhost:8080',
-});
-```
+| Entorno        | URL                              |
+|----------------|----------------------------------|
+| Docker         | `http://backend:8080`            |
+| Local          | `http://localhost:8080`          |
 
 El token JWT se agrega automáticamente en cada request
 una vez que el usuario inicia sesión.
@@ -100,10 +111,10 @@ una vez que el usuario inicia sesión.
 
 ## Solución de problemas
 
-**Pantalla en blanco al abrir** → Verificá que `npm start` esté corriendo.
+**Pantalla en blanco al abrir** → Verificá que el servicio esté corriendo (`npm start` o `docker compose ps`).
 
 **Error 401 en todas las requests** → El token expiró, iniciá sesión de nuevo.
 
-**Error CORS** → Verificá que Spring Boot tenga CORS habilitado para `localhost:3000`.
+**Error CORS** → Verificá que Spring Boot tenga CORS habilitado para el origen correspondiente.
 
-**El chat no responde** → Verificá que FastAPI esté corriendo en `localhost:8000`.
+**El chat no responde** → Verificá que el servicio IA esté corriendo (`docker compose ps`).
