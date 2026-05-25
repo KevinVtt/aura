@@ -1,0 +1,17 @@
+.env
+node_modules/
+build/
+dist/
+target/
+*.jar
+*.war
+__pycache__/
+*.pyc
+*.pyo
+chroma_db/
+data/
+historial.db
+*.db
+application.properties
+.DS_Store
+*.log

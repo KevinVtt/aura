@@ -1,0 +1,64 @@
+services:
+
+  frontend:
+    build: ./frontend/aura-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend/project-aura
+    ports:
+      - "8080:8080"
+    environment:
+      - IA_SERVICE_URL=http://ia:8000
+      - DB_URL=jdbc:postgresql://db:5432/aura_db
+      - DB_USER=postgres
+      - DB_PASS=${DB_PASS}
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - ia
+      - db
+
+  ia:
+    build: ./aura_chatbot
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - chroma_data:/app/chroma_db
+      - ia_data:/app/data
+      - pdfs_data:/app/pdfs
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: ["/bin/bash", "-c"]
+    command: ["ollama serve & sleep 5 && ollama pull llama3.2:3b && ollama pull nomic-embed-text && wait"]
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: aura_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASS}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+volumes:
+  ollama_data:
+  chroma_data:
+  ia_data:
+  pdfs_data:
+  pg_data:
