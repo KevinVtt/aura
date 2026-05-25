@@ -1,0 +1,30 @@
+# ── Entorno Python ────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+env/
+
+# ── Base de datos ─────────────────────────────────
+historial.db
+historial.db-shm
+historial.db-wal
+
+# ── ChromaDB (vectores) ───────────────────────────
+chroma_db/
+
+# ── PDFs subidos ──────────────────────────────────
+pdfs/
+
+# ── IDEs ──────────────────────────────────────────
+.vscode/
+.idea/
+*.code-workspace
+
+# ── Sistema operativo ─────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.env
