@@ -102,4 +102,4 @@ deploy/
 
 ## Licencia
 
-Proyecto académico — Seminario de Lenguaje, Facultad de Informática.
+Proyecto académico.
