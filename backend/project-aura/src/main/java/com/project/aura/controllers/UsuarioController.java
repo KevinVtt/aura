@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import com.project.aura.dto.CambioRolRequest;
 import com.project.aura.models.Contacto;
 import com.project.aura.models.Usuario;
 import com.project.aura.services.UsuarioService;
@@ -53,6 +54,15 @@ public class UsuarioController {
     @PatchMapping("/{id}/activar")
     public ResponseEntity<Void> activar(@PathVariable Long id) {
         usuarioService.activar(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/rol")
+    public ResponseEntity<Void> cambiarRol(
+            @PathVariable Long id,
+            @Valid @RequestBody CambioRolRequest request) {
+
+        usuarioService.cambiarRol(id, request.getRol());
         return ResponseEntity.noContent().build();
     }
 }

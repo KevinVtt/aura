@@ -19,6 +19,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.project.aura.models.Contacto;
 import com.project.aura.models.Usuario;
@@ -41,6 +42,9 @@ class UsuarioServiceTest {
 
     @BeforeEach
     void setUp() {
+        // El email del super admin llega por @Value; en un test unitario hay
+        // que inyectarlo a mano.
+        ReflectionTestUtils.setField(usuarioService, "adminEmail", "admin@aura.com");
         Contacto contacto = Contacto.builder().email("juan@aura.com").build();
         usuario = Usuario.builder()
             .id(1L)
@@ -164,5 +168,84 @@ class UsuarioServiceTest {
         List<Usuario> resultado = usuarioService.listarTodos();
 
         assertTrue(resultado.isEmpty());
+    }
+
+    // ── Super administrador ──────────────────────────────────────────────────
+
+    private Usuario superAdmin() {
+        return Usuario.builder()
+            .id(9L)
+            .nombre("Admin")
+            .rol(Rol.ADMIN)
+            .activo(true)
+            .contacto(Contacto.builder().email("admin@aura.com").build())
+            .build();
+    }
+
+    @Test
+    void cambiarRol_cambiaElRolDelUsuario() {
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
+
+        usuarioService.cambiarRol(1L, Rol.ADMIN);
+
+        assertEquals(Rol.ADMIN, usuario.getRol());
+        verify(usuarioRepository).save(usuario);
+    }
+
+    @Test
+    void cambiarRol_idInexistente_lanzaExcepcion() {
+        when(usuarioRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThrows(RuntimeException.class, () -> usuarioService.cambiarRol(999L, Rol.ADMIN));
+    }
+
+    @Test
+    void cambiarRol_sobreElSuperAdmin_lanzaExcepcion() {
+        Usuario admin = superAdmin();
+        when(usuarioRepository.findById(9L)).thenReturn(Optional.of(admin));
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+            () -> usuarioService.cambiarRol(9L, Rol.EMPLEADO));
+
+        assertTrue(ex.getMessage().contains("super administrador"));
+        assertEquals(Rol.ADMIN, admin.getRol());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void desactivar_sobreElSuperAdmin_lanzaExcepcion() {
+        Usuario admin = superAdmin();
+        when(usuarioRepository.findById(9L)).thenReturn(Optional.of(admin));
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+            () -> usuarioService.desactivar(9L));
+
+        assertTrue(ex.getMessage().contains("super administrador"));
+        assertTrue(admin.getActivo());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void activar_sobreElSuperAdmin_estaPermitido() {
+        // Si quedo inactivo por un cambio manual en la base, hay que poder
+        // recuperarlo desde el panel.
+        Usuario admin = superAdmin();
+        admin.setActivo(false);
+        when(usuarioRepository.findById(9L)).thenReturn(Optional.of(admin));
+
+        usuarioService.activar(9L);
+
+        assertTrue(admin.getActivo());
+        verify(usuarioRepository).save(admin);
+    }
+
+    @Test
+    void listarTodos_marcaAlSuperAdmin() {
+        when(usuarioRepository.findAll()).thenReturn(List.of(usuario, superAdmin()));
+
+        List<Usuario> resultado = usuarioService.listarTodos();
+
+        assertFalse(resultado.get(0).getEsSuperAdmin());
+        assertTrue(resultado.get(1).getEsSuperAdmin());
     }
 }

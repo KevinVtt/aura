@@ -121,6 +121,14 @@ export default function AdminPanel() {
     } catch { notify('Error al desactivar', 'error'); }
   };
 
+  const cambiarRol = async (id, rol) => {
+    try {
+      await api.patch(`/usuarios/${id}/rol`, { rol });
+      notify('Rol actualizado');
+      cargarUsuarios();
+    } catch (err) { notify(motivo(err, 'Error al cambiar el rol'), 'error'); }
+  };
+
   const activarUsuario = async (id) => {
     try {
       await api.patch(`/usuarios/${id}/activar`);
@@ -295,14 +303,37 @@ export default function AdminPanel() {
                         <span className="user-email">{u.contacto?.email}</span>
                       </div>
                     </div>
-                    <span className={`role-badge role-${u.rol?.toLowerCase()}`}>
-                      {u.rol}
-                    </span>
+                    {u.esSuperAdmin ? (
+                      // Sin lista: el super admin no puede dejar de ser admin.
+                      <span
+                        className={`role-badge role-${u.rol?.toLowerCase()}`}
+                        title="Super administrador: no se puede cambiar de rol ni desactivar"
+                      >
+                        {u.rol}
+                      </span>
+                    ) : (
+                      <select
+                        className="role-select"
+                        value={u.rol}
+                        onChange={(e) => cambiarRol(u.id, e.target.value)}
+                        aria-label={`Rol de ${u.nombre}`}
+                      >
+                        <option value="EMPLEADO">Empleado</option>
+                        <option value="ADMIN">Administrador</option>
+                      </select>
+                    )}
                     <span className={`status-badge ${u.activo ? 'active' : 'inactive'}`}>
                       {u.activo ? 'Activo' : 'Inactivo'}
                     </span>
                     <div className="user-actions">
-                      {u.activo ? (
+                      {u.esSuperAdmin ? (
+                        <span
+                          className="super-note"
+                          title="Super administrador: no se puede cambiar de rol ni desactivar"
+                        >
+                          Super admin
+                        </span>
+                      ) : u.activo ? (
                         <button className="btn-danger" onClick={() => desactivarUsuario(u.id)}>
                           Desactivar
                         </button>

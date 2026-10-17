@@ -243,7 +243,7 @@
 
 .users-head {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) 120px 110px 130px;
+  grid-template-columns: minmax(0, 1.7fr) 160px 110px 130px;
   gap: 14px;
   align-items: center;
   padding: 9px 14px;
@@ -260,7 +260,7 @@
 
 .user-item {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) 120px 110px 130px;
+  grid-template-columns: minmax(0, 1.7fr) 160px 110px 130px;
   gap: 14px;
   align-items: center;
   padding: 10px 14px;
@@ -337,6 +337,33 @@
   background: var(--border);
   color: var(--dim);
   border: 1px solid var(--border);
+}
+
+/* El rol se cambia desde acá; el super admin conserva la etiqueta fija. */
+.role-select {
+  justify-self: start;
+  width: 100%;
+  max-width: 150px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.role-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.super-note {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 /* El estado es un punto, no otro recuadro de color */

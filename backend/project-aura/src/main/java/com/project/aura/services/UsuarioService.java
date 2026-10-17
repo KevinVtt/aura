@@ -7,7 +7,10 @@ import org.springframework.stereotype.Service;
 
 import com.project.aura.exception.ApiException;
 import com.project.aura.models.Usuario;
+import com.project.aura.models.enums.Rol;
 import com.project.aura.repositories.UsuarioRepository;
+
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.List;
 
@@ -18,8 +21,16 @@ public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
 
+    // El email del super administrador: no puede cambiar de rol ni desactivarse.
+    @Value("${aura.admin.email:admin@aura.com}")
+    private String adminEmail;
+
     public List<Usuario> listarTodos() {
-        return usuarioRepository.findAll();
+        List<Usuario> usuarios = usuarioRepository.findAll();
+        for (Usuario usuario : usuarios) {
+            usuario.setEsSuperAdmin(esSuperAdmin(usuario));
+        }
+        return usuarios;
     }
 
     public Usuario buscarPorId(Long id) {
@@ -43,6 +54,10 @@ public class UsuarioService {
 
     public Usuario desactivar(Long id) {
         Usuario usuario = buscarPorId(id);
+        if (esSuperAdmin(usuario)) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                "El super administrador no se puede desactivar");
+        }
         usuario.setActivo(false);
         return usuarioRepository.save(usuario);
     }
@@ -51,5 +66,21 @@ public class UsuarioService {
         Usuario usuario = buscarPorId(id);
         usuario.setActivo(true);
         return usuarioRepository.save(usuario);
+    }
+
+    public void cambiarRol(Long id, Rol rol) {
+        Usuario usuario = buscarPorId(id);
+        if (esSuperAdmin(usuario)) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                "El super administrador no puede cambiar de rol");
+        }
+        usuario.setRol(rol);
+        usuarioRepository.save(usuario);
+    }
+
+    private boolean esSuperAdmin(Usuario usuario) {
+        return usuario.getContacto() != null
+            && usuario.getContacto().getEmail() != null
+            && usuario.getContacto().getEmail().equalsIgnoreCase(adminEmail);
     }
 }

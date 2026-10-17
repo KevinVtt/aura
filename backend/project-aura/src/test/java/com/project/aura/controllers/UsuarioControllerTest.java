@@ -1,6 +1,9 @@
 package com.project.aura.controllers;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -16,11 +19,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.project.aura.config.TestSecurityConfig;
+import com.project.aura.exception.ApiException;
 import com.project.aura.jwt.JwtUtil;
 import com.project.aura.models.Contacto;
 import com.project.aura.models.Usuario;
@@ -179,6 +184,51 @@ class UsuarioControllerTest {
 
         mockMvc.perform(patch("/usuarios/1/activar"))
             .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void cambiarRol_devuelve204() throws Exception {
+        mockMvc.perform(patch("/usuarios/1/rol")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rol\":\"ADMIN\"}"))
+            .andExpect(status().isNoContent());
+
+        verify(usuarioService).cambiarRol(1L, Rol.ADMIN);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void cambiarRol_sinRol_devuelve400() throws Exception {
+        mockMvc.perform(patch("/usuarios/1/rol")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rol\":null}"))
+            .andExpect(status().isBadRequest());
+
+        verify(usuarioService, never()).cambiarRol(any(), any());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void cambiarRol_sobreElSuperAdmin_devuelve409() throws Exception {
+        doThrow(new ApiException(HttpStatus.CONFLICT,
+                "El super administrador no puede cambiar de rol"))
+            .when(usuarioService).cambiarRol(9L, Rol.EMPLEADO);
+
+        mockMvc.perform(patch("/usuarios/9/rol")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rol\":\"EMPLEADO\"}"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error").value("El super administrador no puede cambiar de rol"));
+    }
+
+    @Test
+    @WithMockUser(roles = "EMPLEADO")
+    void empleado_cambiarRol_devuelve403() throws Exception {
+        mockMvc.perform(patch("/usuarios/1/rol")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rol\":\"ADMIN\"}"))
+            .andExpect(status().isForbidden());
     }
 
     @Test

@@ -16,6 +16,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -59,4 +60,11 @@ public class Usuario {
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "contacto_id")
     private Contacto contacto;
+
+    // Se calcula al listar, no se guarda. El super administrador (el email de
+    // aura.admin.email) no puede cambiar de rol ni desactivarse: es la única
+    // entrada al panel y no hay forma de recuperarlo desde la app.
+    @Transient
+    @Builder.Default
+    private Boolean esSuperAdmin = false;
 }
