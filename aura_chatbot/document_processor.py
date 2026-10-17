@@ -43,14 +43,14 @@ def procesar_pdf(ruta_pdf: str, nombre_doc: str):
     3. Genera embedding de cada chunk
     4. Guarda en ChromaDB
     """
-    print(f"\n📄 Procesando: {nombre_doc}")
+    print(f"\n[doc] Procesando: {nombre_doc}")
     texto = _extraer_texto(ruta_pdf)
 
     if not texto.strip():
         raise ValueError("No se pudo extraer texto del PDF.")
 
     chunks = _dividir_en_chunks(texto)
-    print(f"   → {len(chunks)} chunks generados")
+    print(f"   -> {len(chunks)} chunks generados")
 
     # shortcut: one embedding call per chunk, batch when the ollama batch API is adopted
     for i, chunk in enumerate(chunks):
@@ -62,7 +62,7 @@ def procesar_pdf(ruta_pdf: str, nombre_doc: str):
             metadatas=[{"fuente": nombre_doc, "chunk_index": i}]
         )
 
-    print(f"   ✓ Guardado en ChromaDB")
+    print(f"   OK: guardado en ChromaDB")
 
 
 def buscar_chunks_relevantes(pregunta: str, top_k: int = 3) -> list[dict]:
