@@ -2,6 +2,7 @@
 node_modules/
 build/
 dist/
+graphify-out/
 target/
 *.jar
 *.war
