@@ -27,13 +27,16 @@ public class DocumentoService {
         // 1. Manda el PDF a FastAPI para procesarlo
         fastAPIClient.subirDocumento(nombreArchivo, contenido);
 
-        // 2. Registra el documento en PostgreSQL
-        Documento documento = Documento.builder()
-            .nombreArchivo(nombreArchivo)
-            .admin(admin)
-            .fechaSubida(LocalDateTime.now())
-            .activo(true)
-            .build();
+        // 2. Registra el documento en PostgreSQL. Resubir el mismo nombre reutiliza la
+        // fila activa: con dos filas, borrar una sola deja la otra apuntando a un
+        // documento que la IA ya no tiene.
+        Documento documento = documentoRepository
+            .findFirstByNombreArchivoAndActivoTrue(nombreArchivo)
+            .orElseGet(() -> Documento.builder().nombreArchivo(nombreArchivo).build());
+
+        documento.setAdmin(admin);
+        documento.setFechaSubida(LocalDateTime.now());
+        documento.setActivo(true);
 
         return documentoRepository.save(documento);
     }

@@ -4,9 +4,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import com.project.aura.models.Documento;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface DocumentoRepository extends JpaRepository<Documento, Long> {
 
     List<Documento> findByActivoTrue();
+
+    // findFirst y no find (una fila por nombre): las bases que ya tienen duplicados
+    // no deben romper con IncorrectResultSizeDataAccessException.
+    Optional<Documento> findFirstByNombreArchivoAndActivoTrue(String nombreArchivo);
 }
