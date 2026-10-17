@@ -86,20 +86,21 @@ beforeEach(() => {
   api.delete.mockReset();
 });
 
-describe('Chat - formato de fecha', () => {
-  test('fecha de hoy se muestra como "Hoy HH:MM"', async () => {
+describe('Chat - fecha en el historial', () => {
+  test('la conversacion de hoy se agrupa bajo "Hoy" y el item muestra la hora', async () => {
     const hoy = new Date();
     mockConversaciones([
       { id: 1, sesionId: 'ses-1', activa: true, fechaInicio: hoy.toISOString() },
     ]);
     const { container, root } = renderChat();
     await act(async () => {});
-    const dateEl = container.querySelector('.conv-item-date');
-    expect(dateEl.textContent).toMatch(/^Hoy \d{1,2}:\d{2}( a\. m\.| p\. m\.)?$/);
+    expect(container.querySelector('.conv-group-label').textContent).toBe('Hoy');
+    expect(container.querySelector('.conv-item-date').textContent)
+      .toMatch(/^\d{1,2}:\d{2}( a\. m\.| p\. m\.)?$/);
     unmount(root);
   });
 
-  test('fecha de ayer se muestra como "Ayer HH:MM"', async () => {
+  test('la de ayer se agrupa bajo "Ayer"', async () => {
     const ayer = new Date();
     ayer.setDate(ayer.getDate() - 1);
     mockConversaciones([
@@ -107,12 +108,11 @@ describe('Chat - formato de fecha', () => {
     ]);
     const { container, root } = renderChat();
     await act(async () => {});
-    const dateEl = container.querySelector('.conv-item-date');
-    expect(dateEl.textContent).toMatch(/^Ayer \d{1,2}:\d{2}( a\. m\.| p\. m\.)?$/);
+    expect(container.querySelector('.conv-group-label').textContent).toBe('Ayer');
     unmount(root);
   });
 
-  test('fecha antigua se muestra como fecha completa con año', async () => {
+  test('una fecha vieja se agrupa con la fecha completa y el año', async () => {
     const vieja = new Date();
     vieja.setDate(vieja.getDate() - 5);
     mockConversaciones([
@@ -120,8 +120,60 @@ describe('Chat - formato de fecha', () => {
     ]);
     const { container, root } = renderChat();
     await act(async () => {});
-    const dateEl = container.querySelector('.conv-item-date');
-    expect(dateEl.textContent).toMatch(/\d{4}/);
+    expect(container.querySelector('.conv-group-label').textContent).toMatch(/\d{4}/);
+    unmount(root);
+  });
+});
+
+describe('Chat - buscador del historial', () => {
+  function setInput(input, value) {
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value'
+    ).set;
+    act(() => {
+      setter.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  const dosConversaciones = () => [
+    { id: 1, sesionId: 'ses-1', activa: true, fechaInicio: new Date().toISOString(), titulo: 'Dias de vacaciones' },
+    { id: 2, sesionId: 'ses-2', activa: true, fechaInicio: new Date().toISOString(), titulo: 'Procedimientos de seguridad' },
+  ];
+
+  test('filtra por el titulo de la conversacion', async () => {
+    mockConversaciones(dosConversaciones());
+    const { container, root } = renderChat();
+    await act(async () => {});
+
+    setInput(container.querySelector('.conv-search'), 'vacacion');
+
+    const items = container.querySelectorAll('.conv-item');
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toContain('Dias de vacaciones');
+    unmount(root);
+  });
+
+  test('sin coincidencias avisa en vez de dejar la lista vacia sin explicacion', async () => {
+    mockConversaciones(dosConversaciones());
+    const { container, root } = renderChat();
+    await act(async () => {});
+
+    setInput(container.querySelector('.conv-search'), 'zzzz');
+
+    expect(container.querySelectorAll('.conv-item')).toHaveLength(0);
+    expect(container.querySelector('.conv-empty').textContent).toBe('Sin resultados');
+    unmount(root);
+  });
+});
+
+describe('Chat - recuadro de consejos', () => {
+  test('ya no se muestra', async () => {
+    api.get.mockResolvedValue({ data: [] });
+    const { container, root } = renderChat();
+    await act(async () => {});
+    expect(container.querySelector('.sidebar-tips')).toBeNull();
     unmount(root);
   });
 });
