@@ -22,7 +22,13 @@ export default function Login() {
       login(data);
       navigate(data.rol === 'ADMIN' ? '/admin' : '/chat');
     } catch (err) {
-      setError(err.response?.data?.error || 'Credenciales incorrectas');
+      // El backend responde 429 sin cuerpo al superar los 5 intentos fallidos: sin
+      // este caso el mensaje seria "Credenciales incorrectas", que es falso.
+      setError(
+        err.response?.status === 429
+          ? 'Demasiados intentos fallidos. Esperá 15 minutos e intentá de nuevo.'
+          : err.response?.data?.error || 'Credenciales incorrectas'
+      );
     } finally {
       setLoading(false);
     }

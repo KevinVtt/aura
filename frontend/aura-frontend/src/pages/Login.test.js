@@ -131,6 +131,20 @@ describe('Login', () => {
     unmount(root);
   });
 
+  test('429 por demasiados intentos no dice "credenciales incorrectas"', async () => {
+    api.post.mockRejectedValue({ response: { status: 429 } });
+    const { container, root } = renderLogin();
+    setInput(container.querySelector('input[name="email"]'), 'ana@test.com');
+    setInput(container.querySelector('input[name="password"]'), 'mal');
+    await act(async () => {
+      container
+        .querySelector('form')
+        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+    expect(container.querySelector('.auth-error').textContent).toContain('Demasiados intentos');
+    unmount(root);
+  });
+
   test('loading deshabilita el botón durante el submit', async () => {
     let resolvePost;
     api.post.mockReturnValue(
