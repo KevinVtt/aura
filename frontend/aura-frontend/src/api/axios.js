@@ -16,7 +16,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    // Un 401 en /auth/login son credenciales incorrectas: Login.jsx muestra el error.
+    const isLogin = err.config?.url?.includes('/auth/login');
+    if (err.response?.status === 401 && !isLogin) {
       localStorage.clear();
       window.location.href = '/login';
     }

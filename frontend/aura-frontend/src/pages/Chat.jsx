@@ -115,10 +115,14 @@ export default function Chat() {
         { pregunta }
       );
       setMensajes((prev) => [...prev, data]);
-    } catch {
+    } catch (err) {
+      const detalle =
+        err.response?.data?.detail ||
+        err.response?.data?.message ||
+        'No se pudo contactar al servicio de IA.';
       setMensajes((prev) => [...prev, {
         id: Date.now() + 1, origen: 'BOT',
-        contenido: 'Ocurrió un error. Intentá de nuevo.',
+        contenido: String(detalle).slice(0, 200),
         timestamp: new Date().toISOString(),
       }]);
     } finally {
@@ -147,7 +151,7 @@ export default function Chat() {
     if (diffDays === 0) return 'Hoy ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
     if (diffDays === 1) return 'Ayer ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
     return d.toLocaleDateString('es-AR', {
-      day: '2-digit', month: '2-digit',
+      day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
   };
