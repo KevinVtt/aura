@@ -7,10 +7,18 @@ import chat_service as cs
 
 app = FastAPI(title="Aura Chatbot API")
 
-# Permite llamadas desde el frontend (cualquier origen en desarrollo)
+# Orígenes permitidos (coma separados). Default: frontend local.
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get(
+        "ALLOWED_ORIGINS", "http://localhost:3000,http://localhost"
+    ).split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -45,19 +53,24 @@ async def subir_documento(archivo: UploadFile = File(...)):
     """
     Recibe un PDF, lo guarda y lo procesa (chunking + embeddings → ChromaDB).
     """
-    if not archivo.filename.endswith(".pdf"):
+    nombre = os.path.basename(archivo.filename or "")
+    if not nombre.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF.")
 
-    ruta = f"./pdfs/{archivo.filename}"
+    ruta = f"./pdfs/{nombre}"
     with open(ruta, "wb") as f:
         shutil.copyfileobj(archivo.file, f)
 
     try:
-        dp.procesar_pdf(ruta, archivo.filename)
+        dp.procesar_pdf(ruta, nombre)
+    except ValueError as e:
+        # Mensaje controlado de procesar_pdf (PDF sin texto extraíble): seguro de exponer.
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"   [ERROR] procesar_pdf falló: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo procesar el PDF.")
 
-    return {"mensaje": f"'{archivo.filename}' procesado correctamente."}
+    return {"mensaje": f"'{nombre}' procesado correctamente."}
 
 
 @app.get("/documentos")
@@ -75,7 +88,14 @@ def chat(req: PreguntaRequest):
     if not req.pregunta.strip():
         raise HTTPException(status_code=400, detail="La pregunta no puede estar vacía.")
 
-    resultado = cs.responder(req.sesion_id, req.pregunta)
+    try:
+        resultado = cs.responder(req.sesion_id, req.pregunta)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"   [ERROR] responder falló: {e}")
+        raise HTTPException(status_code=502, detail="El servicio de IA no está disponible.")
+
     return resultado
 
 
@@ -96,6 +116,7 @@ def eliminar_documento(nombre_doc: str):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"   [ERROR] eliminar_documento falló: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo eliminar el documento.")
 
     return {"mensaje": f"'{nombre_doc}' eliminado correctamente."}

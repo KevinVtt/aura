@@ -7,10 +7,10 @@ load_dotenv()
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"
 
 ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-ollama_client = ollama.Client(host=ollama_host)
+ollama_client = ollama.Client(host=ollama_host, timeout=30)
 
 FALLBACK_CHAT_MODEL = "llama3.2:3b"
 EMBED_MODEL = "nomic-embed-text"
@@ -31,7 +31,7 @@ def generar_respuesta(prompt: str) -> str:
                 "Content-Type": "application/json",
             }
             payload = {
-                "model": GROQ_MODEL,
+                "model": os.environ.get("GROQ_MODEL") or GROQ_MODEL,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.2,
                 "max_tokens": 300,

@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from document_processor import buscar_chunks_relevantes
 from llm_service import generar_respuesta
@@ -14,6 +15,7 @@ def _init_db():
     Crea la tabla de historial si no existe.
     Se ejecuta una sola vez al iniciar el servidor.
     """
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     con = sqlite3.connect(DB_PATH)
     con.execute("""
         CREATE TABLE IF NOT EXISTS historial (
@@ -39,16 +41,24 @@ def _guardar_mensaje(sesion_id: str, rol: str, contenido: str):
     con.close()
 
 
-def _obtener_historial_db(sesion_id: str) -> list[dict]:
+def _obtener_historial_db(sesion_id: str, limite: int | None = None) -> list[dict]:
     """
-    Devuelve todos los mensajes de una sesión ordenados por fecha.
-    Sin límite — el historial completo siempre está disponible.
+    Devuelve los mensajes de una sesión ordenados por fecha (ascendente).
+    Sin límite devuelve el historial completo; con `limite` solo los últimos
+    mensajes, para no cargar todo el historial en cada llamada al LLM.
     """
     con = sqlite3.connect(DB_PATH)
-    rows = con.execute(
-        "SELECT rol, contenido FROM historial WHERE sesion_id = ? ORDER BY id ASC",
-        (sesion_id,)
-    ).fetchall()
+    if limite is None:
+        rows = con.execute(
+            "SELECT rol, contenido FROM historial WHERE sesion_id = ? ORDER BY id ASC",
+            (sesion_id,)
+        ).fetchall()
+    else:
+        rows = con.execute(
+            "SELECT rol, contenido FROM historial WHERE sesion_id = ? ORDER BY id DESC LIMIT ?",
+            (sesion_id, limite)
+        ).fetchall()
+        rows = rows[::-1]
     con.close()
     return [{"rol": rol, "contenido": contenido} for rol, contenido in rows]
 
@@ -69,9 +79,13 @@ def _construir_prompt(pregunta: str, chunks: list[dict], historial: list[dict]) 
         rol = "Usuario" if msg["rol"] == "user" else "Asistente"
         historial_texto += f"{rol}: {msg['contenido']}\n"
 
-    prompt = f"""Sos un asistente de empresa. Respondé la pregunta usando los fragmentos provistos.
-Respondé de forma concisa y directa usando la información de los fragmentos.
-Solo decí "No tengo información sobre ese tema." si los fragmentos están completamente vacíos.
+    prompt = f"""Sos AURA, el asistente virtual de la empresa. Tenés un trato cordial, cercano y profesional.
+
+Cómo responder:
+- Si el usuario te saluda, se despide, agradece o hace charla casual (por ejemplo "Hola", "Buenos días", "¿Cómo estás?", "Gracias"), respondé de forma amable y natural, y ofrecé ayudarlo con sus consultas. Nunca digas que no podés procesar el mensaje.
+- Si el usuario hace una pregunta sobre la información de la empresa, respondela usando los FRAGMENTOS provistos, de forma concisa y directa.
+- Si la pregunta es sobre la empresa pero los FRAGMENTOS no contienen la respuesta, respondé con amabilidad empezando con "No tengo información" sobre ese tema, y ofrecé ayudarlo con otra consulta.
+- No inventes datos que no estén en los FRAGMENTOS.
 
 FRAGMENTOS:
 {contexto}
@@ -84,8 +98,8 @@ RESPUESTA:"""
     return prompt
 
 def responder(sesion_id: str, pregunta: str) -> dict:
-    # 1. Recuperar historial completo desde SQLite
-    historial = _obtener_historial_db(sesion_id)
+    # 1. Recuperar solo los últimos turnos que entran en el prompt
+    historial = _obtener_historial_db(sesion_id, TURNOS_EN_PROMPT * 2)
 
     # 2. Buscar contexto relevante en ChromaDB
     chunks = buscar_chunks_relevantes(pregunta, top_k=3)
@@ -101,7 +115,7 @@ def responder(sesion_id: str, pregunta: str) -> dict:
     _guardar_mensaje(sesion_id, "assistant", respuesta)
 
     # 6. Devolver
-    fuentes = list(set(c["fuente"] for c in chunks))
+    fuentes = sorted(set(c["fuente"] for c in chunks))
     historial_actualizado = _obtener_historial_db(sesion_id)
     return {
         "respuesta": respuesta,

@@ -52,6 +52,7 @@ def procesar_pdf(ruta_pdf: str, nombre_doc: str):
     chunks = _dividir_en_chunks(texto)
     print(f"   → {len(chunks)} chunks generados")
 
+    # shortcut: one embedding call per chunk, batch when the ollama batch API is adopted
     for i, chunk in enumerate(chunks):
         embedding = generar_embedding(chunk)
         coleccion.add(
@@ -95,6 +96,7 @@ def listar_documentos() -> list[str]:
     return sorted(fuentes)
 
 def eliminar_documento(nombre_doc: str):
+    nombre_doc = os.path.basename(nombre_doc)
     todos = coleccion.get(include=["metadatas"])
     ids_a_eliminar = [
         id_
