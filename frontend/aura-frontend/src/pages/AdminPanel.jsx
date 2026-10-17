@@ -92,7 +92,9 @@ export default function AdminPanel() {
       setUserForm({ nombre: '', password: '', rol: 'EMPLEADO', contacto: { email: '', telefono: '' } });
       cargarUsuarios();
     } catch (err) {
-      notify(err.response?.data?.error || 'Error al crear usuario', 'error');
+      // Los errores de validacion llegan como {"campo": "mensaje"}, no como {"error": ...}
+      const data = err.response?.data || {};
+      notify(data.error || Object.values(data)[0] || 'Error al crear usuario', 'error');
     } finally { setUserLoading(false); }
   };
 
