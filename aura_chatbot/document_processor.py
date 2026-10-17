@@ -9,6 +9,13 @@ coleccion = chroma_client.get_or_create_collection(name="documentos_pyme")
 CHUNK_SIZE = 500   # palabras por chunk
 OVERLAP    = 50    # palabras que se repiten entre chunks
 
+# Distancia L2 maxima para aceptar un fragmento como contexto (medido con
+# nomic-embed-text: una pregunta que si corresponde al documento dio 131-168;
+# una pregunta ajena, 294-384). Sin umbral, 2 fragmentos que no venian al caso
+# inflaban el prompt a 4662 caracteres.
+# Si se cambia EMBED_MODEL hay que recalibrar este numero.
+MAX_DISTANCIA = 250
+
 
 def _extraer_texto(ruta_pdf: str) -> str:
     """Lee todas las páginas del PDF y devuelve el texto completo."""
@@ -77,20 +84,27 @@ def buscar_chunks_relevantes(pregunta: str, top_k: int = 3) -> list[dict]:
         include=["documents", "metadatas", "distances"]
     )
 
+    # Solo los fragmentos que hablan del tema. Chroma siempre devuelve los k mas
+    # cercanos aunque no tengan nada que ver, y el modelo contesta sobre ellos.
+    relevantes = [
+        (doc, meta, dist)
+        for doc, meta, dist in zip(
+            resultados["documents"][0],
+            resultados["metadatas"][0],
+            resultados["distances"][0]
+        )
+        if dist <= MAX_DISTANCIA
+    ]
+
     print("=== CHUNKS RECUPERADOS ===")
-    for doc, meta, dist in zip(
-        resultados["documents"][0],
-        resultados["metadatas"][0],
-        resultados["distances"][0]
-    ):
-        print(f"Similitud: {1-dist:.2f} | Fuente: {meta['fuente']}")
+    for doc, meta, dist in relevantes:
+        print(f"Distancia: {dist:.1f} | Fuente: {meta['fuente']}")
         print(f"Texto: {doc[:150]}")
         print("---")
+    if not relevantes:
+        print(f"(ninguno por debajo de {MAX_DISTANCIA}: se responde sin contexto)")
 
-    chunks = []
-    for doc, meta in zip(resultados["documents"][0], resultados["metadatas"][0]):
-        chunks.append({"texto": doc, "fuente": meta["fuente"]})
-    return chunks
+    return [{"texto": doc, "fuente": meta["fuente"]} for doc, meta, _ in relevantes]
 
 
 def listar_documentos() -> list[str]:

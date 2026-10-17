@@ -13,7 +13,9 @@ def test_generar_embedding_llama_a_ollama(aura_modules, monkeypatch):
     resultado = llm.generar_embedding("texto de prueba")
 
     assert resultado == [0.1, 0.2, 0.3]
-    fake.assert_called_once_with(model=llm.EMBED_MODEL, prompt="texto de prueba")
+    fake.assert_called_once_with(
+        model=llm.EMBED_MODEL, prompt="texto de prueba", keep_alive=llm.KEEP_ALIVE
+    )
 
 
 def test_generar_respuesta_usa_groq_cuando_hay_key(aura_modules, monkeypatch):
@@ -53,6 +55,8 @@ def test_generar_respuesta_usa_groq_cuando_hay_key(aura_modules, monkeypatch):
     assert resultado == "respuesta de groq"
     assert llamadas["url"] == llm.GROQ_API_URL
     assert llamadas["payload"]["model"] == llm.GROQ_MODEL
+    # Sin esto gpt-oss gasta ~80% de los tokens de salida en razonamiento invisible.
+    assert llamadas["payload"]["reasoning_effort"] == "low"
     assert llamadas["payload"]["messages"] == [{"role": "user", "content": "mi prompt"}]
     assert llamadas["headers"]["Authorization"] == "Bearer test-key-123"
     assert llamadas["timeout"] == 30

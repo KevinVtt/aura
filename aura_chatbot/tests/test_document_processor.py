@@ -110,6 +110,26 @@ def test_buscar_chunks_relevantes(aura_modules, monkeypatch):
     )
 
 
+def test_buscar_chunks_relevantes_descarta_los_que_no_vienen_al_caso(
+    aura_modules, monkeypatch
+):
+    """Chroma devuelve siempre los k mas cercanos, aunque no tengan que ver con
+    la pregunta: los que superan MAX_DISTANCIA no deben llegar al prompt."""
+    dp = aura_modules.document_processor
+    monkeypatch.setattr(dp, "generar_embedding", lambda texto: [0.5])
+    coleccion = MagicMock()
+    coleccion.query.return_value = {
+        "documents": [["sirve", "no sirve"]],
+        "metadatas": [[{"fuente": "a.pdf"}, {"fuente": "b.pdf"}]],
+        "distances": [[dp.MAX_DISTANCIA, dp.MAX_DISTANCIA + 1]],
+    }
+    monkeypatch.setattr(dp, "coleccion", coleccion)
+
+    resultado = dp.buscar_chunks_relevantes("pregunta", top_k=2)
+
+    assert resultado == [{"texto": "sirve", "fuente": "a.pdf"}]
+
+
 # ── listar_documentos ────────────────────────────────────────────────────────
 
 def test_listar_documentos_devuelve_fuentes_unicas_ordenadas(aura_modules, monkeypatch):

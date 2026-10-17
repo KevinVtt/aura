@@ -15,10 +15,17 @@ ollama_client = ollama.Client(host=ollama_host, timeout=30)
 FALLBACK_CHAT_MODEL = "llama3.2:3b"
 EMBED_MODEL = "nomic-embed-text"
 
+# Ollama descarga el modelo de la RAM a los 5 minutos de inactividad y cargarlo
+# otra vez cuesta ~2 s: medido, la primera pregunta despues de una pausa pagaba
+# 2040 ms de embedding en vez de 37 ms.
+KEEP_ALIVE = "30m"
+
 
 def generar_embedding(texto: str) -> list[float]:
     """Embeddings con Ollama local."""
-    response = ollama_client.embeddings(model=EMBED_MODEL, prompt=texto)
+    response = ollama_client.embeddings(
+        model=EMBED_MODEL, prompt=texto, keep_alive=KEEP_ALIVE
+    )
     return response["embedding"]
 
 
@@ -35,6 +42,11 @@ def generar_respuesta(prompt: str) -> str:
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.2,
                 "max_tokens": 300,
+                # gpt-oss es un modelo de razonamiento: en su nivel por defecto
+                # gastaba ~107 de los 137 tokens de salida en "pensar" antes de
+                # contestar. Con "low" la mediana bajo de 691 a 551 ms y el
+                # consumo a un tercio. Ojo: no todos los modelos lo aceptan.
+                "reasoning_effort": "low",
             }
             with httpx.Client(timeout=30) as client:
                 resp = client.post(GROQ_API_URL, json=payload, headers=headers)
