@@ -176,14 +176,20 @@ export default function AdminPanel() {
                 style={{ display: 'none' }}
               />
               {uploading ? (
-                <><span className="spinner" style={{borderTopColor: 'var(--accent)'}}/> Procesando documento...</>
+                <>
+                  <span className="spinner" />
+                  <span className="upload-text">Procesando documento...</span>
+                </>
               ) : (
                 <>
                   <span className="upload-icon">↑</span>
-                  <span>Hacé click para subir un PDF</span>
-                  <span className="upload-hint">
-                    Solo archivos .pdf · se procesa y se indexa (puede tardar unos segundos)
+                  <span className="upload-text">
+                    Subir un documento
+                    <span className="upload-hint">
+                      Solo archivos .pdf · se procesa y se indexa (puede tardar unos segundos)
+                    </span>
                   </span>
+                  <span className="upload-btn">Elegir archivo</span>
                 </>
               )}
             </div>
@@ -232,40 +238,32 @@ export default function AdminPanel() {
             <div className="form-card">
               <h3 className="form-title">Nuevo usuario</h3>
               <form onSubmit={crearUsuario} className="user-form">
-                <div className="form-row">
-                  <div className="field">
-                    <label>Nombre</label>
-                    <input name="nombre" value={userForm.nombre} onChange={handleUserForm} placeholder="Juan Pérez" required />
-                  </div>
-                  <div className="field">
-                    <label>Email</label>
-                    <input type="email" name="email" value={userForm.contacto.email} onChange={handleUserForm} placeholder="juan@empresa.com" required />
-                  </div>
+                <div className="field">
+                  <label>Nombre</label>
+                  <input name="nombre" value={userForm.nombre} onChange={handleUserForm} placeholder="Juan Pérez" required />
                 </div>
-                <div className="form-row">
-                  <div className="field">
-                    <label>Teléfono</label>
-                    <input name="telefono" value={userForm.contacto.telefono} onChange={handleUserForm} placeholder="1111111111" />
-                  </div>
-                  <div className="field">
-                    <label>Contraseña</label>
-                    <input type="password" name="password" value={userForm.password} onChange={handleUserForm} placeholder="Mínimo 8 caracteres" required />
-                  </div>
+                <div className="field">
+                  <label>Email</label>
+                  <input type="email" name="email" value={userForm.contacto.email} onChange={handleUserForm} placeholder="juan@empresa.com" required />
                 </div>
-                <div className="form-row">
-                  <div className="field">
-                    <label>Rol</label>
-                    <select name="rol" value={userForm.rol} onChange={handleUserForm}>
-                      <option value="EMPLEADO">Empleado</option>
-                      <option value="ADMIN">Administrador</option>
-                    </select>
-                  </div>
-                  <div className="field" style={{ justifyContent: 'flex-end' }}>
-                    <button className="btn-primary" disabled={userLoading} style={{ marginTop: 'auto' }}>
-                      {userLoading ? <span className="spinner" /> : 'Crear usuario'}
-                    </button>
-                  </div>
+                <div className="field">
+                  <label>Teléfono</label>
+                  <input name="telefono" value={userForm.contacto.telefono} onChange={handleUserForm} placeholder="1111111111" />
                 </div>
+                <div className="field">
+                  <label>Contraseña</label>
+                  <input type="password" name="password" value={userForm.password} onChange={handleUserForm} placeholder="Mínimo 8 caracteres" required />
+                </div>
+                <div className="field">
+                  <label>Rol</label>
+                  <select name="rol" value={userForm.rol} onChange={handleUserForm}>
+                    <option value="EMPLEADO">Empleado</option>
+                    <option value="ADMIN">Administrador</option>
+                  </select>
+                </div>
+                <button className="btn-primary" disabled={userLoading}>
+                  {userLoading ? <span className="spinner" /> : 'Crear usuario'}
+                </button>
               </form>
             </div>
 
@@ -279,15 +277,23 @@ export default function AdminPanel() {
             ) : usuarios.length === 0 ? (
               <div className="empty-state">No hay usuarios registrados</div>
             ) : (
-              <div className="user-list">
+              <div className="users-table">
+                <div className="users-head">
+                  <span>Usuario</span>
+                  <span>Rol</span>
+                  <span>Estado</span>
+                  <span>Acciones</span>
+                </div>
                 {usuarios.map((u) => (
                   <div key={u.id} className={`user-item ${!u.activo ? 'inactive' : ''}`}>
-                    <div className="user-avatar">
-                      {u.nombre?.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="user-info-card">
-                      <span className="user-name-card">{u.nombre}</span>
-                      <span className="user-email">{u.contacto?.email}</span>
+                    <div className="user-cell">
+                      <div className="user-avatar">
+                        {u.nombre?.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="user-info-card">
+                        <span className="user-name-card">{u.nombre}</span>
+                        <span className="user-email">{u.contacto?.email}</span>
+                      </div>
                     </div>
                     <span className={`role-badge role-${u.rol?.toLowerCase()}`}>
                       {u.rol}

@@ -10,7 +10,7 @@
 }
 
 .admin-header {
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .page-title {
@@ -21,7 +21,7 @@
 
 .page-sub {
   font-size: 13px;
-  color: var(--muted);
+  color: var(--dim);
   margin-top: 4px;
 }
 
@@ -56,7 +56,7 @@
   display: flex;
   gap: 4px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .tab {
@@ -68,7 +68,7 @@
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--dim);
-  font-family: 'IBM Plex Sans', sans-serif;
+  font-family: inherit;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -82,9 +82,9 @@
 .tab-count {
   background: var(--border);
   border-radius: 20px;
-  padding: 1px 7px;
+  padding: 1px 8px;
   font-size: 11px;
-  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
 }
 
 .tab.active .tab-count {
@@ -92,50 +92,75 @@
   color: var(--accent);
 }
 
-/* Upload */
+/* Upload: una fila, no una caja gigante */
 .upload-zone {
-  border: 1.5px dashed var(--border2);
-  border-radius: var(--radius-lg);
-  padding: 36px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  border: 1px dashed var(--border2);
+  border-radius: var(--radius);
+  padding: 14px 16px;
   cursor: pointer;
   transition: border-color .2s, background .2s;
   margin-bottom: 24px;
-  color: var(--dim);
-  font-size: 14px;
 }
 
 .upload-zone:hover {
   border-color: var(--accent);
   background: var(--accent-bg);
-  color: var(--text);
 }
 
 .upload-icon {
-  font-size: 24px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent-bg);
+  border: 1px solid var(--border2);
   color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.upload-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .upload-hint {
   font-size: 12px;
+  font-weight: 400;
   color: var(--muted);
+}
+
+.upload-btn {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
 /* List header */
 .list-header {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: .8px;
+  letter-spacing: .08em;
   color: var(--muted);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 /* Doc list */
-.doc-list, .user-list {
+.doc-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -145,23 +170,22 @@
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 14px 16px;
+  padding: 10px 14px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   transition: border-color .2s;
 }
 
 .doc-item:hover { border-color: var(--border2); }
 
 .doc-icon {
-  background: rgba(247,184,79,.1);
+  background: rgba(247,184,79,.12);
   color: var(--warning);
-  border: 1px solid rgba(247,184,79,.2);
-  border-radius: 6px;
+  border: 1px solid rgba(247,184,79,.22);
+  border-radius: 7px;
   padding: 4px 8px;
   font-size: 10px;
-  font-family: 'IBM Plex Mono', monospace;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -170,12 +194,16 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
+  min-width: 0;
 }
 
 .doc-name {
   font-size: 14px;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .doc-meta {
@@ -188,120 +216,169 @@
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 24px;
-  margin-bottom: 28px;
+  padding: 20px;
+  margin-bottom: 24px;
 }
 
 .form-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .user-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
 }
 
-/* User list */
-.user-item {
-  background: var(--card);
+/* Users: filas en columnas, con encabezado, para que los badges no floten */
+.users-table {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  transition: border-color .2s;
+  overflow: hidden;
+  background: var(--card);
 }
 
+.users-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) 120px 110px 130px;
+  gap: 14px;
+  align-items: center;
+  padding: 9px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+}
+
+.users-head span:last-child { text-align: right; }
+
+.user-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) 120px 110px 130px;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  transition: background .2s;
+}
+
+.users-head + .user-item { border-top: none; }
+.user-item:hover { background: var(--surface); }
 .user-item.inactive { opacity: .6; }
-.user-item:hover { border-color: var(--border2); }
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
 
 .user-avatar {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: var(--accent-bg);
-  border: 1px solid rgba(79,142,247,.2);
+  border: 1px solid var(--border2);
   color: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   flex-shrink: 0;
 }
 
 .user-info-card {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  min-width: 0;
 }
 
 .user-name-card {
   font-size: 14px;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-email {
   font-size: 12px;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.user-actions { margin-left: auto; display: flex; gap: 8px; }
+.user-actions { display: flex; justify-content: flex-end; }
 
 .role-badge {
+  justify-self: start;
   font-size: 10px;
-  font-family: 'IBM Plex Mono', monospace;
   font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 4px;
-  letter-spacing: .5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: .04em;
 }
 
 .role-admin {
-  background: rgba(124,58,237,.15);
-  color: #a78bfa;
-  border: 1px solid rgba(124,58,237,.2);
+  background: var(--accent-bg);
+  color: var(--accent);
+  border: 1px solid var(--border2);
 }
 
 .role-empleado {
-  background: var(--accent-bg);
-  color: var(--accent);
-  border: 1px solid rgba(79,142,247,.2);
+  background: var(--border);
+  color: var(--dim);
+  border: 1px solid var(--border);
 }
 
+/* El estado es un punto, no otro recuadro de color */
 .status-badge {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--dim);
 }
 
-.status-badge.active {
-  background: rgba(61,214,140,.1);
-  color: var(--success);
+.status-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
 }
 
-.status-badge.inactive {
-  background: rgba(247,95,95,.1);
-  color: var(--danger);
-}
+.status-badge.active::before { background: var(--success); }
+.status-badge.inactive::before { background: var(--muted); }
 
 .empty-state {
   text-align: center;
-  padding: 48px;
+  padding: 28px;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   background: var(--card);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-lg);
+  border: 1px dashed var(--border2);
+  border-radius: var(--radius);
+}
+
+@media (max-width: 1000px) {
+  .user-form { grid-template-columns: 1fr 1fr; }
+  /* sin esto el boton se estira al ancho de su celda: el defecto que se quiso sacar */
+  .user-form > button { justify-self: start; }
+  .users-head { display: none; }
+  .user-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 10px;
+  }
+  .user-cell { grid-column: 1 / -1; }
+  .upload-zone { flex-wrap: wrap; }
 }
