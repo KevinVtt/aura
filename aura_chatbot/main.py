@@ -2,6 +2,15 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import shutil, os, uuid
+import sys
+
+# Windows: stdout es cp1252 y los simbolos que imprime document_processor
+# (flecha, tilde de check) tiraban UnicodeEncodeError y rompian la subida.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 import document_processor as dp
 import chat_service as cs
 
