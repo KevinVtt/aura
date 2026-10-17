@@ -67,6 +67,8 @@ def test_procesar_pdf_guarda_chunks_en_chroma(aura_modules, monkeypatch):
 
     dp.procesar_pdf("./pdfs/doc.pdf", "doc.pdf")
 
+    # una version anterior del mismo archivo se borra antes de guardar la nueva
+    coleccion.delete.assert_called_once_with(where={"fuente": "doc.pdf"})
     coleccion.add.assert_called_once_with(
         ids=["doc.pdf_chunk_0"],
         embeddings=[[0.1, 0.2]],

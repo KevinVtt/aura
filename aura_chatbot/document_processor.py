@@ -52,6 +52,10 @@ def procesar_pdf(ruta_pdf: str, nombre_doc: str):
     chunks = _dividir_en_chunks(texto)
     print(f"   -> {len(chunks)} chunks generados")
 
+    # Resubir el mismo archivo debe reemplazarlo: un add con ids ya usados se ignora
+    # en silencio y la IA seguiria respondiendo con el texto viejo.
+    coleccion.delete(where={"fuente": nombre_doc})
+
     # shortcut: one embedding call per chunk, batch when the ollama batch API is adopted
     for i, chunk in enumerate(chunks):
         embedding = generar_embedding(chunk)
