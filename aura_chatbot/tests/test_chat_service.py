@@ -85,6 +85,38 @@ def test_responder_flujo_completo(aura_modules, monkeypatch):
     assert obtener.call_args_list[1].args == ("s1",)
 
 
+def test_responder_no_cita_fuentes_cuando_no_encontro_la_respuesta(aura_modules, monkeypatch):
+    """Citar "Fuente: x.pdf" debajo de un "No tengo información" se contradice:
+    si el modelo no encontró la respuesta, los fragmentos no eran la fuente."""
+    cs = aura_modules.chat_service
+    monkeypatch.setattr(cs, "_obtener_historial_db", MagicMock(return_value=[]))
+    monkeypatch.setattr(cs, "buscar_chunks_relevantes", MagicMock(return_value=[
+        {"texto": "t1", "fuente": "guia.pdf"},
+    ]))
+    monkeypatch.setattr(cs, "generar_respuesta", MagicMock(
+        return_value="No tengo información sobre ese tema. ¿Hay algo más en lo que pueda ayudarte?"
+    ))
+    monkeypatch.setattr(cs, "_guardar_mensaje", lambda *a: None)
+
+    resultado = cs.responder("s1", "¿cuántos días de vacaciones me corresponden?")
+
+    assert resultado["fuentes"] == []
+
+
+def test_responder_cita_fuentes_cuando_si_respondio(aura_modules, monkeypatch):
+    cs = aura_modules.chat_service
+    monkeypatch.setattr(cs, "_obtener_historial_db", MagicMock(return_value=[]))
+    monkeypatch.setattr(cs, "buscar_chunks_relevantes", MagicMock(return_value=[
+        {"texto": "t1", "fuente": "guia.pdf"},
+    ]))
+    monkeypatch.setattr(cs, "generar_respuesta", MagicMock(return_value="El profesor es Fulano."))
+    monkeypatch.setattr(cs, "_guardar_mensaje", lambda *a: None)
+
+    resultado = cs.responder("s1", "¿quién es el profesor?")
+
+    assert resultado["fuentes"] == ["guia.pdf"]
+
+
 # ── SQLite real (hermético: ./data/historial.db vive en el temp dir) ─────────
 
 def test_guardar_y_obtener_mensaje_sqlite_real(aura_modules):

@@ -9,6 +9,11 @@ DB_PATH = "./data/historial.db"
 # El historial completo queda guardado en SQLite sin límite.
 TURNOS_EN_PROMPT = 10
 
+# El prompt le pide al modelo empezar así cuando los fragmentos no alcanzan.
+# Se usa como marca de rechazo en dos lugares: para no repetir en el prompt
+# esas respuestas del historial, y para no citar fuentes al pie de una.
+RECHAZO = "No tengo información"
+
 
 def _init_db():
     """
@@ -74,7 +79,7 @@ def _construir_prompt(pregunta: str, chunks: list[dict], historial: list[dict]) 
     # Filtrá respuestas negativas del historial
     historial_texto = ""
     for msg in historial_reciente:
-        if msg["rol"] == "assistant" and "No tengo información" in msg["contenido"]:
+        if msg["rol"] == "assistant" and RECHAZO in msg["contenido"]:
             continue
         rol = "Usuario" if msg["rol"] == "user" else "Asistente"
         historial_texto += f"{rol}: {msg['contenido']}\n"
@@ -115,7 +120,12 @@ def responder(sesion_id: str, pregunta: str) -> dict:
     _guardar_mensaje(sesion_id, "assistant", respuesta)
 
     # 6. Devolver
-    fuentes = sorted(set(c["fuente"] for c in chunks))
+    # Si el modelo no encontró la respuesta no se citan fuentes: mostrar
+    # "Fuente: x.pdf" debajo de un "No tengo información" se contradice.
+    fuentes = (
+        [] if RECHAZO in respuesta
+        else sorted(set(c["fuente"] for c in chunks))
+    )
     historial_actualizado = _obtener_historial_db(sesion_id)
     return {
         "respuesta": respuesta,
