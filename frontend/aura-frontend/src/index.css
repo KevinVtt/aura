@@ -5,17 +5,24 @@
 }
 
 :root {
-  --bg:        #08080f;
-  --surface:   #0f0f1a;
-  --card:      #13131f;
-  --border:    #1e1e30;
-  --border2:   #2a2a40;
-  --text:      #e2e2f0;
-  --dim:       #9090b0;
-  --muted:     #55556a;
-  --accent:    #4f8ef7;
-  --accent-h:  #6ba3ff;
-  --accent-bg: rgba(79,142,247,.1);
+  /* Grafito: el mismo tema oscuro para toda la app. Las capas bg/surface/card
+     estan separadas a proposito, antes casi no se distinguian entre si. */
+  color-scheme: dark;
+  --bg:        #0d1117;
+  --surface:   #141a23;
+  --card:      #1b2330;
+  --border:    #232b38;
+  --border2:   #2e3a4d;
+  --text:      #e6edf3;
+  --dim:       #99a7ba;
+  --muted:     #6b7a8f;
+  --accent:    #7c8cf8;
+  --accent-h:  #93a0fa;
+  --accent-bg: rgba(124,140,248,.12);
+  /* Sobre el violeta claro va texto oscuro; el violeta oscuro se usa para el
+     globo del usuario, donde el texto es blanco. */
+  --accent-fg: #0d1117;
+  --accent-strong: #4f46e5;
   --danger:    #f75f5f;
   --success:   #3dd68c;
   --warning:   #f7b84f;
@@ -27,7 +34,7 @@ html, body, #root {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: 'IBM Plex Sans', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -58,6 +65,3 @@ html, body, #root {
 
 .fade-in { animation: fadeIn .35s ease both; }
 .slide-in { animation: slideIn .3s ease both; }
-
-/* Utility */
-.mono { font-family: 'IBM Plex Mono', monospace; }
