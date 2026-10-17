@@ -8,6 +8,8 @@ export default function AdminPanel() {
   const [documentos, setDocumentos] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [borrando, setBorrando] = useState(null);
+  const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState('');
   const [msgType, setMsgType] = useState('');
   const fileRef = useRef();
@@ -29,11 +31,20 @@ export default function AdminPanel() {
     setTimeout(() => setMsg(''), 3500);
   };
 
+  // Los errores de validacion llegan como {"campo": "mensaje"}, y los de la IA
+  // como {"detail": "..."}: se muestra el primero que exista en vez de un texto
+  // generico que oculta el motivo real (por ejemplo, un PDF sin texto).
+  const motivo = (err, porDefecto) => {
+    const data = err.response?.data || {};
+    return data.detail || data.error || Object.values(data)[0] || porDefecto;
+  };
+
   const cargarDocumentos = async () => {
     try {
       const { data } = await api.get('/documentos');
       setDocumentos(data);
     } catch { notify('Error al cargar documentos', 'error'); }
+    finally { setCargando(false); }
   };
 
   const cargarUsuarios = async () => {
@@ -41,6 +52,7 @@ export default function AdminPanel() {
       const { data } = await api.get('/usuarios');
       setUsuarios(data);
     } catch { notify('Error al cargar usuarios', 'error'); }
+    finally { setCargando(false); }
   };
 
   const subirArchivo = async (e) => {
@@ -58,17 +70,21 @@ export default function AdminPanel() {
       });
       notify('Documento subido correctamente');
       cargarDocumentos();
-    } catch { notify('Error al subir el documento', 'error'); }
+    } catch (err) { notify(motivo(err, 'Error al subir el documento'), 'error'); }
     finally { setUploading(false); fileRef.current.value = ''; }
   };
 
-  const eliminarDoc = async (id) => {
-    if (!window.confirm('¿Eliminár este documento?')) return;
+  const eliminarDoc = async (doc) => {
+    // El confirm tiene que decir CUAL documento: con un texto generico es
+    // facil borrar el de al lado, y esto no se puede deshacer.
+    if (!window.confirm(`¿Eliminar "${doc.nombreArchivo}"? No se puede deshacer.`)) return;
+    setBorrando(doc.id);
     try {
-      await api.delete(`/documentos/${id}`);
+      await api.delete(`/documentos/${doc.id}`);
       notify('Documento eliminado');
       cargarDocumentos();
-    } catch { notify('Error al eliminar', 'error'); }
+    } catch (err) { notify(motivo(err, 'Error al eliminar'), 'error'); }
+    finally { setBorrando(null); }
   };
 
   const handleUserForm = (e) => {
@@ -92,9 +108,7 @@ export default function AdminPanel() {
       setUserForm({ nombre: '', password: '', rol: 'EMPLEADO', contacto: { email: '', telefono: '' } });
       cargarUsuarios();
     } catch (err) {
-      // Los errores de validacion llegan como {"campo": "mensaje"}, no como {"error": ...}
-      const data = err.response?.data || {};
-      notify(data.error || Object.values(data)[0] || 'Error al crear usuario', 'error');
+      notify(motivo(err, 'Error al crear usuario'), 'error');
     } finally { setUserLoading(false); }
   };
 
@@ -167,7 +181,9 @@ export default function AdminPanel() {
                 <>
                   <span className="upload-icon">↑</span>
                   <span>Hacé click para subir un PDF</span>
-                  <span className="upload-hint">Solo archivos .pdf</span>
+                  <span className="upload-hint">
+                    Solo archivos .pdf · se procesa y se indexa (puede tardar unos segundos)
+                  </span>
                 </>
               )}
             </div>
@@ -177,7 +193,9 @@ export default function AdminPanel() {
               <span>Documentos cargados</span>
             </div>
 
-            {documentos.length === 0 ? (
+            {cargando ? (
+              <div className="empty-state">Cargando documentos...</div>
+            ) : documentos.length === 0 ? (
               <div className="empty-state">
                 No hay documentos cargados todavía
               </div>
@@ -193,8 +211,12 @@ export default function AdminPanel() {
                         {' · '}por {doc.admin?.nombre || 'Admin'}
                       </span>
                     </div>
-                    <button className="btn-danger" onClick={() => eliminarDoc(doc.id)}>
-                      Eliminar
+                    <button
+                      className="btn-danger"
+                      onClick={() => eliminarDoc(doc)}
+                      disabled={borrando === doc.id}
+                    >
+                      {borrando === doc.id ? 'Eliminando...' : 'Eliminar'}
                     </button>
                   </div>
                 ))}
@@ -252,7 +274,9 @@ export default function AdminPanel() {
               <span>Usuarios registrados</span>
             </div>
 
-            {usuarios.length === 0 ? (
+            {cargando ? (
+              <div className="empty-state">Cargando usuarios...</div>
+            ) : usuarios.length === 0 ? (
               <div className="empty-state">No hay usuarios registrados</div>
             ) : (
               <div className="user-list">
