@@ -110,24 +110,31 @@ def test_buscar_chunks_relevantes(aura_modules, monkeypatch):
     )
 
 
-def test_buscar_chunks_relevantes_descarta_los_que_no_vienen_al_caso(
-    aura_modules, monkeypatch
-):
-    """Chroma devuelve siempre los k mas cercanos, aunque no tengan que ver con
-    la pregunta: los que superan MAX_DISTANCIA no deben llegar al prompt."""
+def test_buscar_chunks_relevantes_no_descarta_por_distancia(aura_modules, monkeypatch):
+    """Los k mas cercanos llegan al prompt aunque la distancia sea alta.
+
+    Medido con nomic-embed-text sobre un PDF real: una pregunta cuyo contenido
+    SI esta en el documento dio distancias 184-333, y una pregunta ajena
+    298-365. Los rangos se solapan, asi que un umbral fijo no separa "es del
+    documento" de "no lo es": solo borraba respuestas legitimas y el bot
+    contestaba "No tengo informacion" a preguntas que si podia responder.
+    El prompt ya le indica al modelo cuando decir "No tengo informacion"."""
     dp = aura_modules.document_processor
     monkeypatch.setattr(dp, "generar_embedding", lambda texto: [0.5])
     coleccion = MagicMock()
     coleccion.query.return_value = {
-        "documents": [["sirve", "no sirve"]],
+        "documents": [["cerca", "lejos"]],
         "metadatas": [[{"fuente": "a.pdf"}, {"fuente": "b.pdf"}]],
-        "distances": [[dp.MAX_DISTANCIA, dp.MAX_DISTANCIA + 1]],
+        "distances": [[150.0, 400.0]],
     }
     monkeypatch.setattr(dp, "coleccion", coleccion)
 
     resultado = dp.buscar_chunks_relevantes("pregunta", top_k=2)
 
-    assert resultado == [{"texto": "sirve", "fuente": "a.pdf"}]
+    assert resultado == [
+        {"texto": "cerca", "fuente": "a.pdf"},
+        {"texto": "lejos", "fuente": "b.pdf"},
+    ]
 
 
 # ── listar_documentos ────────────────────────────────────────────────────────

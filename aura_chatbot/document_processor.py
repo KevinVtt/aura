@@ -9,13 +9,6 @@ coleccion = chroma_client.get_or_create_collection(name="documentos_pyme")
 CHUNK_SIZE = 500   # palabras por chunk
 OVERLAP    = 50    # palabras que se repiten entre chunks
 
-# Distancia L2 maxima para aceptar un fragmento como contexto (medido con
-# nomic-embed-text: una pregunta que si corresponde al documento dio 131-168;
-# una pregunta ajena, 294-384). Sin umbral, 2 fragmentos que no venian al caso
-# inflaban el prompt a 4662 caracteres.
-# Si se cambia EMBED_MODEL hay que recalibrar este numero.
-MAX_DISTANCIA = 250
-
 
 def _extraer_texto(ruta_pdf: str) -> str:
     """Lee todas las páginas del PDF y devuelve el texto completo."""
@@ -77,6 +70,21 @@ def procesar_pdf(ruta_pdf: str, nombre_doc: str):
 
 
 def buscar_chunks_relevantes(pregunta: str, top_k: int = 3) -> list[dict]:
+    """Devuelve los `top_k` fragmentos mas cercanos a la pregunta.
+
+    No filtra por distancia, a proposito. Hubo un umbral fijo (250) y hubo que
+    sacarlo: medido con nomic-embed-text sobre un PDF real de 2 paginas, una
+    pregunta cuyo contenido SI esta en el documento dio 184-333, y una pregunta
+    ajena 298-365. Los rangos se solapan, asi que ningun umbral fijo separa "es
+    del documento" de "no lo es": lo unico que hacia era borrar respuestas
+    legitimas y que el bot contestara "No tengo informacion" a preguntas que si
+    sabia responder (probado: leidas las 4 preguntas de contenido con los
+    fragmentos sin filtrar, las respondio bien, y rechazo las 2 ajenas). Quien
+    decide si los fragmentos alcanzan es el modelo, con la instruccion del
+    prompt de no inventar y decir "No tengo informacion" cuando no alcanzan.
+    Probado tambien achicar los fragmentos (hasta 60 palabras): los rangos
+    siguen solapandose, asi que no es cuestion del tamano del chunk.
+    """
     vector_pregunta = generar_embedding(pregunta)
     resultados = coleccion.query(
         query_embeddings=[vector_pregunta],
@@ -84,27 +92,22 @@ def buscar_chunks_relevantes(pregunta: str, top_k: int = 3) -> list[dict]:
         include=["documents", "metadatas", "distances"]
     )
 
-    # Solo los fragmentos que hablan del tema. Chroma siempre devuelve los k mas
-    # cercanos aunque no tengan nada que ver, y el modelo contesta sobre ellos.
-    relevantes = [
-        (doc, meta, dist)
-        for doc, meta, dist in zip(
-            resultados["documents"][0],
-            resultados["metadatas"][0],
-            resultados["distances"][0]
-        )
-        if dist <= MAX_DISTANCIA
-    ]
-
     print("=== CHUNKS RECUPERADOS ===")
-    for doc, meta, dist in relevantes:
+    for doc, meta, dist in zip(
+        resultados["documents"][0],
+        resultados["metadatas"][0],
+        resultados["distances"][0]
+    ):
         print(f"Distancia: {dist:.1f} | Fuente: {meta['fuente']}")
         print(f"Texto: {doc[:150]}")
         print("---")
-    if not relevantes:
-        print(f"(ninguno por debajo de {MAX_DISTANCIA}: se responde sin contexto)")
 
-    return [{"texto": doc, "fuente": meta["fuente"]} for doc, meta, _ in relevantes]
+    return [
+        {"texto": doc, "fuente": meta["fuente"]}
+        for doc, meta in zip(
+            resultados["documents"][0], resultados["metadatas"][0]
+        )
+    ]
 
 
 def listar_documentos() -> list[str]:
