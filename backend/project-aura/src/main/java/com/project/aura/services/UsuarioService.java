@@ -1,11 +1,12 @@
 package com.project.aura.services;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.project.aura.exception.ApiException;
 import com.project.aura.models.Usuario;
-import com.project.aura.repositories.ContactoRepository;
 import com.project.aura.repositories.UsuarioRepository;
 
 import java.util.List;
@@ -23,12 +24,12 @@ public class UsuarioService {
 
     public Usuario buscarPorId(Long id) {
         return usuarioRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
     }
 
     public Usuario buscarPorEmail(String email) {
         return usuarioRepository.findByContactoEmail(email)
-            .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
     }
 
     public Usuario crear(Usuario usuario) {

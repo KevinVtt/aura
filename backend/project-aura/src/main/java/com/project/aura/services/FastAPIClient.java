@@ -7,7 +7,10 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.server.ResponseStatusException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 
 @Service
@@ -31,16 +34,36 @@ public class FastAPIClient {
 
         HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headers);
 
-        ResponseEntity<Map> response = restTemplate.postForEntity(
-            fastapiUrl + "/chat",
-            request,
-            Map.class
-        );
+        ResponseEntity<Map> response;
+        try {
+            response = restTemplate.postForEntity(
+                fastapiUrl + "/chat",
+                request,
+                Map.class
+            );
+        } catch (RestClientResponseException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, detalleDe(e));
+        }
 
-        System.out.println("=== RESPUESTA FASTAPI ===");
-        System.out.println(response.getBody());
+        Map<?, ?> cuerpo = response.getBody();
+        if (cuerpo == null || cuerpo.get("respuesta") == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                "El servicio de IA no devolvió una respuesta válida");
+        }
 
-        return (String) response.getBody().get("respuesta");
+        return (String) cuerpo.get("respuesta");
+    }
+
+    private String detalleDe(RestClientResponseException e) {
+        try {
+            Object detalle = new ObjectMapper()
+                .readValue(e.getResponseBodyAsString(), Map.class).get("detail");
+            if (detalle != null) {
+                return detalle.toString();
+            }
+        } catch (Exception ignored) {
+        }
+        return e.getStatusText();
     }
 
     public void subirDocumento(String nombreArchivo, byte[] contenido) {

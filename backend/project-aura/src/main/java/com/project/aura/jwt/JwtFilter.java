@@ -12,14 +12,17 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 
+import com.project.aura.models.Usuario;
+import com.project.aura.repositories.UsuarioRepository;
+
 @Component
 @RequiredArgsConstructor
 public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final UsuarioRepository usuarioRepository;
 
-      // ← AGREGÁ ESTE MÉTODO
-    @Override
+      @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
         return path.startsWith("/auth/login");
@@ -47,13 +50,24 @@ public class JwtFilter extends OncePerRequestFilter {
             }
 
             String email = jwtUtil.obtenerEmail(token);
-            String rol   = jwtUtil.obtenerRol(token);
+
+            // El rol se toma de la base de datos, nunca del claim del token.
+            // Un usuario inexistente o inactivo no queda autenticado.
+            Usuario usuario = usuarioRepository
+                .findByContactoEmail(email)
+                .orElse(null);
+
+            if (usuario == null || !Boolean.TRUE.equals(usuario.getActivo())) {
+                SecurityContextHolder.clearContext();
+                chain.doFilter(request, response);
+                return;
+            }
 
             UsernamePasswordAuthenticationToken auth =
                 new UsernamePasswordAuthenticationToken(
                     email,
                     null,
-                    List.of(new SimpleGrantedAuthority("ROLE_" + rol))
+                    List.of(new SimpleGrantedAuthority("ROLE_" + usuario.getRol().name()))
                 );
 
             auth.setDetails(new WebAuthenticationDetailsSource()

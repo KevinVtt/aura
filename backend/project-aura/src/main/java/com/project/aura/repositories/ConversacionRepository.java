@@ -12,9 +12,5 @@ public interface ConversacionRepository extends JpaRepository<Conversacion, Long
 
     Optional<Conversacion> findBySesionId(String sesionId);
 
-    List<Conversacion> findByUsuarioId(Long usuarioId);
-
-    List<Conversacion> findByActivaTrue();
-
     List<Conversacion> findByUsuarioIdOrderByFechaInicioDesc(Long usuarioId);
 }

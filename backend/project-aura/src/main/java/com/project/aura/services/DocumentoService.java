@@ -1,8 +1,10 @@
 package com.project.aura.services;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import com.project.aura.exception.ApiException;
 import com.project.aura.models.Documento;
 import com.project.aura.models.Usuario;
 import com.project.aura.repositories.DocumentoRepository;
@@ -38,7 +40,7 @@ public class DocumentoService {
 
     public void eliminar(Long id) {
         Documento documento = documentoRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Documento no encontrado"));
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Documento no encontrado"));
 
         // 1. Elimina de ChromaDB via FastAPI
         fastAPIClient.eliminarDocumento(documento.getNombreArchivo());

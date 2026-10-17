@@ -1,14 +1,14 @@
 package com.project.aura.controllers;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.project.aura.exception.ApiException;
 import com.project.aura.models.Documento;
 import com.project.aura.models.Usuario;
 import com.project.aura.repositories.UsuarioRepository;
@@ -34,16 +34,23 @@ public class DocumentoController {
     public ResponseEntity<Documento> subir(
             @RequestParam("archivo") MultipartFile archivo) throws Exception {
 
-        String email = SecurityContextHolder.getContext()
-            .getAuthentication()
-            .getName();
+        String nombre = archivo.getOriginalFilename();
+        if (nombre == null || !nombre.toLowerCase().endsWith(".pdf")) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Solo se permiten archivos PDF");
+        }
+        if (nombre.length() > 255) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                "El nombre del archivo no puede superar los 255 caracteres");
+        }
 
         Usuario admin = usuarioRepository
-            .findByContactoEmail(email)
-            .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            .findByContactoEmail(SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName())
+            .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Usuario no encontrado"));
 
         Documento documento = documentoService.subir(
-            archivo.getOriginalFilename(),
+            nombre,
             archivo.getBytes(),
             admin
         );

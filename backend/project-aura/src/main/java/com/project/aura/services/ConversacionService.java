@@ -1,8 +1,10 @@
 package com.project.aura.services;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import com.project.aura.exception.ApiException;
 import com.project.aura.models.Conversacion;
 import com.project.aura.models.Mensaje;
 import com.project.aura.models.Usuario;
@@ -33,9 +35,7 @@ public class ConversacionService {
     }
 
     public Mensaje enviarMensaje(String sesionId, String pregunta, Usuario usuario) {
-        Conversacion conversacion = conversacionRepository
-            .findBySesionId(sesionId)
-            .orElseThrow(() -> new RuntimeException("Conversación no encontrada"));
+        Conversacion conversacion = conversacionDe(sesionId, usuario);
 
         // 1. Guardar mensaje del empleado
         Mensaje mensajeEmpleado = Mensaje.builder()
@@ -63,18 +63,14 @@ public class ConversacionService {
         return mensajeBot;
     }
 
-    public List<Mensaje> obtenerMensajes(String sesionId) {
-        Conversacion conversacion = conversacionRepository
-            .findBySesionId(sesionId)
-            .orElseThrow(() -> new RuntimeException("Conversación no encontrada"));
+    public List<Mensaje> obtenerMensajes(String sesionId, Usuario usuario) {
+        Conversacion conversacion = conversacionDe(sesionId, usuario);
         return mensajeRepository
             .findByConversacionIdOrderByTimestampAsc(conversacion.getId());
     }
 
-    public void cerrar(String sesionId) {
-        Conversacion conversacion = conversacionRepository
-            .findBySesionId(sesionId)
-            .orElseThrow(() -> new RuntimeException("Conversación no encontrada"));
+    public void cerrar(String sesionId, Usuario usuario) {
+        Conversacion conversacion = conversacionDe(sesionId, usuario);
         conversacion.setActiva(false);
         conversacion.setFechaFin(LocalDateTime.now());
         conversacionRepository.save(conversacion);
@@ -88,10 +84,10 @@ public class ConversacionService {
     public void eliminar(String sesionId, Usuario usuario) {
         Conversacion conversacion = conversacionRepository
             .findBySesionId(sesionId)
-            .orElseThrow(() -> new RuntimeException("Conversación no encontrada"));
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Conversación no encontrada"));
 
         if (!conversacion.getUsuario().getId().equals(usuario.getId())) {
-            throw new RuntimeException("No tenés permiso para eliminar esta conversación");
+            throw new ApiException(HttpStatus.FORBIDDEN, "No tenés permiso para eliminar esta conversación");
         }
 
         try {
@@ -100,5 +96,17 @@ public class ConversacionService {
         }
 
         conversacionRepository.delete(conversacion);
+    }
+
+    // Devuelve la conversación solo si pertenece al usuario que la pide (evita el IDOR).
+    private Conversacion conversacionDe(String sesionId, Usuario usuario) {
+        Conversacion conversacion = conversacionRepository
+            .findBySesionId(sesionId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Conversación no encontrada"));
+
+        if (!conversacion.getUsuario().getId().equals(usuario.getId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "No tenés permiso para acceder a esta conversación");
+        }
+        return conversacion;
     }
 }

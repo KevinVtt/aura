@@ -34,18 +34,22 @@ public class AuthController {
     private static final int MAX_INTENTOS = 5;
     private static final long VENTANA_MS = 15 * 60 * 1000;
 
-    private record LoginAttempt(int count, Instant bloqueadoHasta) {}
+    // La ventana arranca en el último intento fallido, así las entradas viejas se pueden purgar.
+    private record LoginAttempt(int count, Instant expira) {}
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest) {
 
-        String ip = obtenerIp(httpRequest);
+        // Purgar ventanas vencidas: la clave es la IP real, no un header falseable.
+        Instant ahora = Instant.now();
+        intentos.values().removeIf(a -> ahora.isAfter(a.expira()));
+
+        String ip = httpRequest.getRemoteAddr();
         LoginAttempt actual = intentos.get(ip);
 
-        if (actual != null && actual.bloqueadoHasta() != null
-                && Instant.now().isBefore(actual.bloqueadoHasta())) {
+        if (actual != null && actual.count() >= MAX_INTENTOS) {
             return ResponseEntity.status(429).build();
         }
 
@@ -58,11 +62,7 @@ public class AuthController {
             );
         } catch (AuthenticationException e) {
             int nuevos = (actual == null ? 0 : actual.count()) + 1;
-            if (nuevos >= MAX_INTENTOS) {
-                intentos.put(ip, new LoginAttempt(nuevos, Instant.now().plusMillis(VENTANA_MS)));
-            } else {
-                intentos.put(ip, new LoginAttempt(nuevos, null));
-            }
+            intentos.put(ip, new LoginAttempt(nuevos, Instant.now().plusMillis(VENTANA_MS)));
             return ResponseEntity.status(401).build();
         }
 
@@ -112,13 +112,5 @@ public class AuthController {
             .nombre(usuario.getNombre())
             .rol(usuario.getRol().name())
             .build());
-    }
-
-    private String obtenerIp(HttpServletRequest request) {
-        String xf = request.getHeader("X-Forwarded-For");
-        if (xf != null && !xf.isBlank()) {
-            return xf.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 }

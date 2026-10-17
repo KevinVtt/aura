@@ -16,6 +16,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -54,6 +55,7 @@ public class Usuario {
     @Builder.Default
     private Boolean activo = true;
     
+    @Valid
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "contacto_id")
     private Contacto contacto;

@@ -1,13 +1,14 @@
 package com.project.aura.controllers;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import com.project.aura.dto.PreguntaRequest;
+import com.project.aura.exception.ApiException;
 import com.project.aura.models.Conversacion;
 import com.project.aura.models.Mensaje;
 import com.project.aura.models.Usuario;
@@ -27,14 +28,7 @@ public class ChatController {
 
     @PostMapping("/iniciar")
     public ResponseEntity<Conversacion> iniciar() {
-        String email = SecurityContextHolder.getContext()
-            .getAuthentication().getName();
-
-        Usuario usuario = usuarioRepository
-            .findByContactoEmail(email)
-            .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-        return ResponseEntity.ok(conversacionService.iniciar(usuario));
+        return ResponseEntity.ok(conversacionService.iniciar(usuarioActual()));
     }
 
     @PostMapping("/{sesionId}/mensaje")
@@ -42,15 +36,8 @@ public class ChatController {
             @PathVariable String sesionId,
             @Valid @RequestBody PreguntaRequest pregunta) {
 
-        String email = SecurityContextHolder.getContext()
-            .getAuthentication().getName();
-
-        Usuario usuario = usuarioRepository
-            .findByContactoEmail(email)
-            .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
         Mensaje respuesta = conversacionService
-            .enviarMensaje(sesionId, pregunta.getPregunta(), usuario);
+            .enviarMensaje(sesionId, pregunta.getPregunta(), usuarioActual());
 
         return ResponseEntity.ok(respuesta);
     }
@@ -58,40 +45,34 @@ public class ChatController {
     @GetMapping("/{sesionId}/mensajes")
     public ResponseEntity<List<Mensaje>> obtenerMensajes(
             @PathVariable String sesionId) {
-        return ResponseEntity.ok(conversacionService.obtenerMensajes(sesionId));
+        return ResponseEntity.ok(conversacionService.obtenerMensajes(sesionId, usuarioActual()));
     }
 
     @PatchMapping("/{sesionId}/cerrar")
     public ResponseEntity<Void> cerrar(@PathVariable String sesionId) {
-        conversacionService.cerrar(sesionId);
+        conversacionService.cerrar(sesionId, usuarioActual());
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/conversaciones")
     public ResponseEntity<List<Conversacion>> listarConversaciones() {
-        String email = SecurityContextHolder.getContext()
-            .getAuthentication().getName();
-
-        Usuario usuario = usuarioRepository
-            .findByContactoEmail(email)
-            .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
         return ResponseEntity.ok(
-            conversacionService.listarPorUsuario(usuario.getId())
+            conversacionService.listarPorUsuario(usuarioActual().getId())
         );
     }
 
     @DeleteMapping("/{sesionId}")
     public ResponseEntity<Void> eliminarConversacion(
             @PathVariable String sesionId) {
+        conversacionService.eliminar(sesionId, usuarioActual());
+        return ResponseEntity.noContent().build();
+    }
+
+    private Usuario usuarioActual() {
         String email = SecurityContextHolder.getContext()
             .getAuthentication().getName();
-
-        Usuario usuario = usuarioRepository
+        return usuarioRepository
             .findByContactoEmail(email)
-            .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-        conversacionService.eliminar(sesionId, usuario);
-        return ResponseEntity.noContent().build();
+            .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Usuario no encontrado"));
     }
 }
