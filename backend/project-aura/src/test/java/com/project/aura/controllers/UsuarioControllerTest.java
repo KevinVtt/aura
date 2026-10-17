@@ -142,6 +142,18 @@ class UsuarioControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
+    void crear_sinTelefono_devuelve200() throws Exception {
+        when(usuarioService.crear(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        mockMvc.perform(post("/usuarios")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nombre\":\"Juan\",\"password\":\"password123\",\"rol\":\"EMPLEADO\","
+                    + "\"contacto\":{\"email\":\"juan@aura.com\",\"telefono\":\"\"}}"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
     void desactivar_devuelve204() throws Exception {
         when(usuarioService.desactivar(1L)).thenReturn(usuario());
 

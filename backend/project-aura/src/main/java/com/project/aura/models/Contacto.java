@@ -25,7 +25,8 @@ public class Contacto {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Pattern(regexp = "^[0-9]{10,15}$",
+    // "^$|" porque el telefono es opcional: el frontend manda "" cuando se deja vacio
+    @Pattern(regexp = "^$|^[0-9]{10,15}$",
              message = "El teléfono debe contener entre 10 y 15 dígitos")
     private String telefono;
 }
