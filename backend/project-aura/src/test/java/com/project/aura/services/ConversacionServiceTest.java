@@ -86,13 +86,15 @@ class ConversacionServiceTest {
     @Test
     void enviarMensaje_guardaMensajeEmpleadoYBot() {
         when(conversacionRepository.findBySesionId("sesion-1")).thenReturn(Optional.of(conversacion));
-        when(fastAPIClient.chat("sesion-1", "hola")).thenReturn("Respuesta de la IA");
+        when(fastAPIClient.chat("sesion-1", "hola"))
+            .thenReturn(new FastAPIClient.RespuestaIA("Respuesta de la IA", List.of("manual.pdf")));
         when(mensajeRepository.save(any(Mensaje.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Mensaje resultado = conversacionService.enviarMensaje("sesion-1", "hola", usuario);
 
         assertNotNull(resultado);
         assertEquals("Respuesta de la IA", resultado.getContenido());
+        assertEquals("manual.pdf", resultado.getFuentes());
         assertEquals(Origen.BOT, resultado.getOrigen());
         assertNull(resultado.getUsuario());
         verify(mensajeRepository, times(2)).save(any(Mensaje.class));
@@ -115,7 +117,8 @@ class ConversacionServiceTest {
         // El servicio NO valida preguntas vacías: la validación solo existe en el controller
         // (PreguntaRequest @NotBlank). Este test documenta el comportamiento actual.
         when(conversacionRepository.findBySesionId("sesion-1")).thenReturn(Optional.of(conversacion));
-        when(fastAPIClient.chat("sesion-1", "")).thenReturn("Respuesta");
+        when(fastAPIClient.chat("sesion-1", ""))
+            .thenReturn(new FastAPIClient.RespuestaIA("Respuesta", List.of()));
         when(mensajeRepository.save(any(Mensaje.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Mensaje resultado = conversacionService.enviarMensaje("sesion-1", "", usuario);
@@ -246,6 +249,35 @@ class ConversacionServiceTest {
         List<Conversacion> resultado = conversacionService.listarPorUsuario(1L);
 
         assertTrue(resultado.isEmpty());
+    }
+
+    @Test
+    void listarPorUsuario_usaLaPrimeraPreguntaComoTitulo() {
+        when(conversacionRepository.findByUsuarioIdOrderByFechaInicioDesc(1L))
+            .thenReturn(List.of(conversacion));
+        Mensaje primera = Mensaje.builder().id(1L).contenido("¿Cuántos días de vacaciones?")
+            .origen(Origen.EMPLEADO).timestamp(LocalDateTime.now()).build();
+        when(mensajeRepository.findFirstByConversacionIdAndOrigenOrderByTimestampAsc(1L, Origen.EMPLEADO))
+            .thenReturn(Optional.of(primera));
+
+        List<Conversacion> resultado = conversacionService.listarPorUsuario(1L);
+
+        assertEquals("¿Cuántos días de vacaciones?", resultado.get(0).getTitulo());
+    }
+
+    @Test
+    void listarPorUsuario_recortaUnTituloLargo() {
+        when(conversacionRepository.findByUsuarioIdOrderByFechaInicioDesc(1L))
+            .thenReturn(List.of(conversacion));
+        Mensaje primera = Mensaje.builder().id(1L).contenido("a".repeat(80))
+            .origen(Origen.EMPLEADO).timestamp(LocalDateTime.now()).build();
+        when(mensajeRepository.findFirstByConversacionIdAndOrigenOrderByTimestampAsc(1L, Origen.EMPLEADO))
+            .thenReturn(Optional.of(primera));
+
+        String titulo = conversacionService.listarPorUsuario(1L).get(0).getTitulo();
+
+        assertEquals(61, titulo.length());
+        assertTrue(titulo.endsWith("…"));
     }
 
     @Test

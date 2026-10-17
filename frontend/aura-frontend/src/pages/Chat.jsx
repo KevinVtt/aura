@@ -4,6 +4,45 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import './Chat.css';
 
+// El modelo contesta con markdown (**negrita**, listas). Se arma con nodos de
+// React y no con HTML: el texto viene del modelo y no se debe inyectar crudo.
+function conNegritas(texto) {
+  return String(texto)
+    .split(/(\*\*[^*\n]+\*\*)/g)
+    .map((parte, i) =>
+      parte.startsWith('**') && parte.endsWith('**') && parte.length > 4 ? (
+        <strong key={i}>{parte.slice(2, -2)}</strong>
+      ) : (
+        parte
+      )
+    );
+}
+
+function Respuesta({ texto }) {
+  const bloques = [];
+  let vinetas = [];
+
+  const cerrarLista = () => {
+    if (vinetas.length) {
+      bloques.push(<ul key={`ul-${bloques.length}`}>{vinetas}</ul>);
+      vinetas = [];
+    }
+  };
+
+  String(texto).split('\n').forEach((linea, i) => {
+    const vineta = linea.match(/^\s*[-*•]\s+(.*)$/);
+    if (vineta) {
+      vinetas.push(<li key={i}>{conNegritas(vineta[1])}</li>);
+      return;
+    }
+    cerrarLista();
+    if (linea.trim()) bloques.push(<p key={i}>{conNegritas(linea)}</p>);
+  });
+  cerrarLista();
+
+  return bloques;
+}
+
 export default function Chat() {
   const { user } = useAuth();
   const [sesionId, setSesionId] = useState(null);
@@ -12,12 +51,18 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [iniciando, setIniciando] = useState(false);
+  const [esperando, setEsperando] = useState(0);
+  const [copiado, setCopiado] = useState(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const inactivityRef = useRef(null);
+  const abortRef = useRef(null);
 
   useEffect(() => {
-    return () => clearTimeout(inactivityRef.current);
+    return () => {
+      clearTimeout(inactivityRef.current);
+      abortRef.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -34,6 +79,21 @@ export default function Chat() {
       inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 120) + 'px';
     }
   }, [input]);
+
+  // Sin esto el usuario mira tres puntos sin saber si el sistema sigue vivo:
+  // Groq tiene picos de 10 a 20 segundos.
+  useEffect(() => {
+    if (!loading) {
+      setEsperando(0);
+      return undefined;
+    }
+    const inicio = Date.now();
+    const id = setInterval(
+      () => setEsperando(Math.floor((Date.now() - inicio) / 1000)),
+      1000
+    );
+    return () => clearInterval(id);
+  }, [loading]);
 
   const resetInactivity = () => {
     clearTimeout(inactivityRef.current);
@@ -59,12 +119,14 @@ export default function Chat() {
       const { data } = await api.post('/chat/iniciar');
       setSesionId(data.sesionId);
       cargarConversaciones();
+      return data.sesionId;
     } catch {
       setMensajes([{
         id: 0, origen: 'BOT',
         contenido: 'Error al conectar. Verificá que Spring Boot esté corriendo.',
         timestamp: new Date().toISOString()
       }]);
+      return null;
     } finally {
       setIniciando(false);
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -95,9 +157,9 @@ export default function Chat() {
     } catch {}
   };
 
-  const enviar = async () => {
-    if (!input.trim() || loading || !sesionId) return;
-    const pregunta = input.trim();
+  const enviar = async (texto, sesion = sesionId) => {
+    const pregunta = String(texto ?? input).trim();
+    if (!pregunta || loading || !sesion) return;
     setInput('');
     resetInactivity();
     const msgUser = {
@@ -109,26 +171,49 @@ export default function Chat() {
     setMensajes((prev) => [...prev, msgUser]);
     setLoading(true);
 
+    const control = new AbortController();
+    abortRef.current = control;
+
     try {
       const { data } = await api.post(
-        `/chat/${sesionId}/mensaje`,
-        { pregunta }
+        `/chat/${sesion}/mensaje`,
+        { pregunta },
+        { signal: control.signal }
       );
       setMensajes((prev) => [...prev, data]);
     } catch (err) {
-      const detalle =
-        err.response?.data?.detail ||
-        err.response?.data?.message ||
-        'No se pudo contactar al servicio de IA.';
+      const detalle = control.signal.aborted
+        ? 'Cancelaste la consulta.'
+        : err.response?.data?.detail ||
+          err.response?.data?.message ||
+          'No se pudo contactar al servicio de IA.';
       setMensajes((prev) => [...prev, {
         id: Date.now() + 1, origen: 'BOT',
         contenido: String(detalle).slice(0, 200),
         timestamp: new Date().toISOString(),
       }]);
     } finally {
+      abortRef.current = null;
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
+  };
+
+  const usarSugerencia = async (texto) => {
+    if (sesionId) {
+      enviar(texto);
+      return;
+    }
+    const nueva = await iniciarConversacion();
+    if (nueva) enviar(texto, nueva);
+  };
+
+  const copiar = async (texto) => {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado(texto);
+      setTimeout(() => setCopiado(null), 1500);
+    } catch {}
   };
 
   const handleKey = (e) => {
@@ -200,7 +285,9 @@ export default function Chat() {
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                     </button>
                   </div>
-                  <span className="conv-item-preview mono">{conv.sesionId.substring(0, 16)}...</span>
+                  <span className="conv-item-titulo">
+                    {conv.titulo || 'Sin mensajes todavía'}
+                  </span>
                 </div>
               ))
             )}
@@ -230,11 +317,7 @@ export default function Chat() {
                 </button>
                 <div className="suggestions">
                   {suggestions.map((s) => (
-                    <button key={s} className="suggestion"
-                      onClick={() => {
-                        iniciarConversacion();
-                        setTimeout(() => setInput(s), 300);
-                      }}>
+                    <button key={s} className="suggestion" onClick={() => usarSugerencia(s)}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                       {s}
                     </button>
@@ -253,11 +336,7 @@ export default function Chat() {
                 <p>Escribí tu primera pregunta o elegí una sugerencia</p>
                 <div className="suggestions">
                   {suggestions.map((s) => (
-                    <button key={s} className="suggestion"
-                      onClick={() => {
-                        setInput(s);
-                        inputRef.current?.focus();
-                      }}>
+                    <button key={s} className="suggestion" onClick={() => usarSugerencia(s)}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                       {s}
                     </button>
@@ -265,26 +344,49 @@ export default function Chat() {
                 </div>
               </div>
             ) : (
-              mensajes.map((msg, i) => (
-                <div
-                  key={msg.id || i}
-                  className={`message ${msg.origen === 'EMPLEADO' ? 'user' : 'bot'} fade-in`}
-                  style={{ animationDelay: `${i * 0.03}s` }}
-                >
-                  <div className="msg-avatar">
-                    {msg.origen === 'EMPLEADO' ? (user?.nombre?.charAt(0) || 'U') : 'A'}
-                  </div>
-                  <div className="msg-content">
-                    <div className="msg-header">
-                      <span className="msg-author">
-                        {msg.origen === 'EMPLEADO' ? (msg.usuario?.nombre || user?.nombre) : 'Aura'}
-                      </span>
-                      <span className="msg-time">{formatTime(msg.timestamp)}</span>
+              mensajes.map((msg, i) => {
+                const esBot = msg.origen !== 'EMPLEADO';
+                const fuentes = esBot && msg.fuentes ? String(msg.fuentes).split(',') : [];
+                return (
+                  <div
+                    key={msg.id || i}
+                    className={`message ${esBot ? 'bot' : 'user'} fade-in`}
+                    style={{ animationDelay: `${i * 0.03}s` }}
+                  >
+                    <div className="msg-avatar">
+                      {esBot ? 'A' : (user?.nombre?.charAt(0) || 'U')}
                     </div>
-                    <div className="msg-bubble">{msg.contenido}</div>
+                    <div className="msg-content">
+                      <div className="msg-header">
+                        <span className="msg-author">
+                          {esBot ? 'Aura' : (msg.usuario?.nombre || user?.nombre)}
+                        </span>
+                        <span className="msg-time">{formatTime(msg.timestamp)}</span>
+                        {esBot && (
+                          <button
+                            className="msg-copy"
+                            onClick={() => copiar(msg.contenido)}
+                            title="Copiar respuesta"
+                          >
+                            {copiado === msg.contenido ? 'Copiado' : 'Copiar'}
+                          </button>
+                        )}
+                      </div>
+                      <div className="msg-bubble">
+                        {esBot ? <Respuesta texto={msg.contenido} /> : msg.contenido}
+                      </div>
+                      {fuentes.length > 0 && (
+                        <div className="msg-fuentes">
+                          <span className="fuentes-label">Fuente:</span>
+                          {fuentes.map((f) => (
+                            <span className="fuente-chip" key={f}>{f}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
 
             {loading && (
@@ -294,6 +396,14 @@ export default function Chat() {
                   <div className="msg-header"><span className="msg-author">Aura</span></div>
                   <div className="msg-bubble typing">
                     <span /><span /><span />
+                  </div>
+                  <div className="typing-info">
+                    <span className="typing-text">
+                      Redactando…{esperando > 0 ? ` ${esperando} s` : ''}
+                    </span>
+                    <button className="btn-cancelar" onClick={() => abortRef.current?.abort()}>
+                      Cancelar
+                    </button>
                   </div>
                 </div>
               </div>
@@ -316,7 +426,7 @@ export default function Chat() {
               />
               <button
                 className="send-btn"
-                onClick={enviar}
+                onClick={() => enviar()}
                 disabled={loading || !input.trim() || !sesionId}
               >
                 {loading ? <span className="spinner" /> : (

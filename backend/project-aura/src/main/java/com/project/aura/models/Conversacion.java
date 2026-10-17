@@ -37,4 +37,9 @@ public class Conversacion {
 
     @OneToMany(mappedBy = "conversacion", cascade = CascadeType.ALL)
     private List<Mensaje> mensajes;
+
+    // Primera pregunta de la conversacion, para el sidebar. Solo viaja en la API,
+    // no es una columna: sin esto la lista mostraba el UUID de la sesion.
+    @Transient
+    private String titulo;
 }

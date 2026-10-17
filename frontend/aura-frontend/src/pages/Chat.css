@@ -135,11 +135,16 @@
   flex: 1;
 }
 
-.conv-item-preview {
-  font-size: 10px;
-  color: #94A3B8;
-  margin-top: 2px;
-  display: block;
+.conv-item-titulo {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.4;
+  overflow: hidden;
+  /* dos lineas como maximo para que la lista no salte de altura */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .conv-delete {
@@ -419,6 +424,80 @@
   box-shadow: 0 2px 8px rgba(99,102,241,.18);
 }
 
+/* ── Respuesta en markdown (negritas y vinetas del modelo) ── */
+.msg-bubble p {
+  margin: 0;
+}
+
+.msg-bubble p + p,
+.msg-bubble ul + p {
+  margin-top: 8px;
+}
+
+.msg-bubble ul {
+  margin: 8px 0 0 4px;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.msg-bubble li + li {
+  margin-top: 4px;
+}
+
+.msg-bubble strong {
+  font-weight: 600;
+}
+
+/* ── Copiar respuesta ── */
+.msg-copy {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  color: #94A3B8;
+  cursor: pointer;
+  opacity: 0;
+  transition: color .2s, background .2s, opacity .2s;
+}
+
+.message:hover .msg-copy { opacity: 1; }
+.msg-copy:focus-visible { opacity: 1; }
+
+.msg-copy:hover {
+  color: #4338CA;
+  background: #EEF2FF;
+}
+
+/* ── Fuentes citadas ── */
+.msg-fuentes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.fuentes-label {
+  font-size: 11px;
+  color: #94A3B8;
+}
+
+.fuente-chip {
+  background: #EEF2FF;
+  border: 1px solid #C7D2FE;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11px;
+  color: #4338CA;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Typing Indicator ── */
 .msg-bubble.typing {
   display: flex;
@@ -439,6 +518,38 @@
 
 .msg-bubble.typing span:nth-child(2) { animation-delay: .2s; }
 .msg-bubble.typing span:nth-child(3) { animation-delay: .4s; }
+
+/* ── Espera: tiempo transcurrido + cancelar ── */
+.typing-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #64748B;
+}
+
+.typing-text {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.btn-cancelar {
+  background: none;
+  border: 1px solid #E2E8F0;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  color: #64748B;
+  cursor: pointer;
+  transition: color .2s, border-color .2s, background .2s;
+}
+
+.btn-cancelar:hover {
+  color: #B91C1C;
+  border-color: #FECACA;
+  background: #FEF2F2;
+}
 
 /* ── Input Area ── */
 .chat-input-area {

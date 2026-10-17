@@ -3,8 +3,8 @@ package com.project.aura.services;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +15,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
 
 class FastAPIClientTest {
 
@@ -70,8 +72,21 @@ class FastAPIClientTest {
         server.expect(requestTo("http://localhost:8000/chat"))
             .andRespond(withSuccess("{\"respuesta\":\"hola mundo\"}", MediaType.APPLICATION_JSON));
 
-        String resultado = fastAPIClient.chat("sesion-1", "hola");
+        FastAPIClient.RespuestaIA resultado = fastAPIClient.chat("sesion-1", "hola");
 
-        assertEquals("hola mundo", resultado);
+        assertEquals("hola mundo", resultado.respuesta());
+        assertTrue(resultado.fuentes().isEmpty());
+    }
+
+    @Test
+    void chat_devuelveLasFuentesParaPoderMostrarlasEnElChat() {
+        server.expect(requestTo("http://localhost:8000/chat"))
+            .andRespond(withSuccess(
+                "{\"respuesta\":\"hola\",\"fuentes\":[\"manual.pdf\",\"politicas.pdf\"]}",
+                MediaType.APPLICATION_JSON));
+
+        FastAPIClient.RespuestaIA resultado = fastAPIClient.chat("sesion-1", "hola");
+
+        assertEquals(List.of("manual.pdf", "politicas.pdf"), resultado.fuentes());
     }
 }

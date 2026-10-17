@@ -11,6 +11,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -22,7 +23,11 @@ public class FastAPIClient {
     @Value("${fastapi.url}")
     private String fastapiUrl;
 
-    public String chat(String sesionId, String pregunta) {
+    /** Lo que devuelve la IA: el texto y los documentos de los que salio. */
+    public record RespuestaIA(String respuesta, List<String> fuentes) {
+    }
+
+    public RespuestaIA chat(String sesionId, String pregunta) {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -51,7 +56,11 @@ public class FastAPIClient {
                 "El servicio de IA no devolvió una respuesta válida");
         }
 
-        return (String) cuerpo.get("respuesta");
+        List<String> fuentes = cuerpo.get("fuentes") instanceof List<?> lista
+            ? lista.stream().map(String::valueOf).toList()
+            : List.of();
+
+        return new RespuestaIA((String) cuerpo.get("respuesta"), fuentes);
     }
 
     private String detalleDe(RestClientResponseException e) {

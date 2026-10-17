@@ -41,5 +41,10 @@ public class Mensaje {
     @Column(nullable = false)
     private LocalDateTime timestamp;
 
+    // Documentos de los que salio la respuesta, separados por coma. Nulo cuando
+    // la IA contesto sin usar ningun fragmento (saludo, o nada relevante).
+    @Column(columnDefinition = "TEXT")
+    private String fuentes;
+
     
 }

@@ -183,13 +183,92 @@ describe('Chat - envío de mensaje', () => {
     // el mensaje del usuario aparece inmediatamente
     const userMsg = container.querySelector('.message.user .msg-bubble');
     expect(userMsg.textContent).toBe('Hola Aura');
-    expect(api.post).toHaveBeenCalledWith('/chat/ses-123/mensaje', { pregunta: 'Hola Aura' });
+    expect(api.post).toHaveBeenCalledWith(
+      '/chat/ses-123/mensaje',
+      { pregunta: 'Hola Aura' },
+      { signal: expect.anything() }
+    );
 
     // la respuesta del bot llega después
     await act(async () => {});
     const botBubbles = container.querySelectorAll('.message.bot .msg-bubble');
     const lastBot = botBubbles[botBubbles.length - 1];
     expect(lastBot.textContent).toBe('Respuesta de Aura');
+    unmount(root);
+  });
+});
+
+describe('Chat - respuesta del bot', () => {
+  async function conversacionConRespuesta(respuesta) {
+    api.get.mockResolvedValue({ data: [] });
+    api.post.mockImplementation((url) => {
+      if (url === '/chat/iniciar') {
+        return Promise.resolve({ data: { sesionId: 'ses-123' } });
+      }
+      if (url === '/chat/ses-123/mensaje') {
+        return Promise.resolve({ data: respuesta });
+      }
+      return Promise.reject(new Error('llamada inesperada: ' + url));
+    });
+
+    const { container, root } = renderChat();
+    await act(async () => {});
+    iniciarConversacion(container);
+    await act(async () => {});
+
+    setTextarea(container.querySelector('textarea.chat-input'), 'Hola Aura');
+    act(() => {
+      container
+        .querySelector('.send-btn')
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {});
+    return { container, root };
+  }
+
+  test('las negritas del modelo se muestran sin asteriscos', async () => {
+    const { container, root } = await conversacionConRespuesta({
+      id: 2, origen: 'BOT', contenido: 'Tenes **15 días** de vacaciones',
+      timestamp: new Date().toISOString(),
+    });
+
+    const burbujas = container.querySelectorAll('.message.bot .msg-bubble');
+    const ultima = burbujas[burbujas.length - 1];
+
+    expect(ultima.querySelector('strong').textContent).toBe('15 días');
+    expect(ultima.textContent).not.toContain('**');
+    unmount(root);
+  });
+
+  test('muestra de qué documento salió la respuesta', async () => {
+    const { container, root } = await conversacionConRespuesta({
+      id: 2, origen: 'BOT', contenido: 'Respuesta',
+      fuentes: 'manual.pdf,politicas.pdf',
+      timestamp: new Date().toISOString(),
+    });
+
+    const chips = [...container.querySelectorAll('.fuente-chip')].map((c) => c.textContent);
+
+    expect(chips).toEqual(['manual.pdf', 'politicas.pdf']);
+    unmount(root);
+  });
+});
+
+describe('Chat - lista de conversaciones', () => {
+  test('usa el título que manda el backend en vez del UUID', async () => {
+    mockConversaciones([
+      {
+        id: 1, sesionId: '2a225cfd-95e7-47aa', activa: true,
+        fechaInicio: new Date().toISOString(),
+        titulo: '¿Cuántos días de vacaciones?',
+      },
+    ]);
+    const { container, root } = renderChat();
+    await act(async () => {});
+
+    expect(container.querySelector('.conv-item-titulo').textContent)
+      .toBe('¿Cuántos días de vacaciones?');
+    expect(container.querySelector('.conv-item').textContent).not.toContain('2a225cfd');
     unmount(root);
   });
 });

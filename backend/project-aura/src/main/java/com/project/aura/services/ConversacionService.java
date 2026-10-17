@@ -48,14 +48,18 @@ public class ConversacionService {
         mensajeRepository.save(mensajeEmpleado);
 
         // 2. Llamar a FastAPI y obtener respuesta
-        String respuesta = fastAPIClient.chat(sesionId, pregunta);
+        FastAPIClient.RespuestaIA respuestaIA = fastAPIClient.chat(sesionId, pregunta);
 
         // 3. Guardar respuesta del bot
         Mensaje mensajeBot = Mensaje.builder()
             .conversacion(conversacion)
             .origen(Origen.BOT)
             .usuario(null)
-            .contenido(respuesta)
+            .contenido(respuestaIA.respuesta())
+            // shortcut: nombres separados por coma; un PDF con coma en el nombre
+            // se partiria en dos chips. Pasar a JSON si aparecen esos nombres.
+            .fuentes(respuestaIA.fuentes().isEmpty()
+                ? null : String.join(",", respuestaIA.fuentes()))
             .timestamp(LocalDateTime.now())
             .build();
         mensajeRepository.save(mensajeBot);
@@ -77,8 +81,23 @@ public class ConversacionService {
     }
 
     public List<Conversacion> listarPorUsuario(Long usuarioId) {
-    return conversacionRepository
-        .findByUsuarioIdOrderByFechaInicioDesc(usuarioId);
+        List<Conversacion> conversaciones = conversacionRepository
+            .findByUsuarioIdOrderByFechaInicioDesc(usuarioId);
+
+        // El sidebar mostraba el UUID de la sesion, que no le dice nada a nadie:
+        // el titulo es la primera pregunta de la conversacion.
+        for (Conversacion conversacion : conversaciones) {
+            mensajeRepository
+                .findFirstByConversacionIdAndOrigenOrderByTimestampAsc(
+                    conversacion.getId(), Origen.EMPLEADO)
+                .ifPresent(primero ->
+                    conversacion.setTitulo(recortar(primero.getContenido())));
+        }
+        return conversaciones;
+    }
+
+    private String recortar(String texto) {
+        return texto.length() > 60 ? texto.substring(0, 60).trim() + "…" : texto;
     }
 
     public void eliminar(String sesionId, Usuario usuario) {
