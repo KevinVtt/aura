@@ -50,7 +50,7 @@ Esto generaba fricción: coordinación manual entre repos, sin docker-compose ce
 | **Secretos** | `.env` commiteado | En `.gitignore` |
 | **Frontend prod** | Sin configuración | Nginx con SPA routing |
 | **Backend** | Sin Docker | Multi-stage Docker build |
-| **Base de datos** | Sin inicialización | DataInitializer automático |
+| **Base de datos** | Sin inicialización | DataInitializer con admin desde `ADMIN_EMAIL`/`ADMIN_PASSWORD` |
 
 ## Quick Start
 
@@ -60,7 +60,7 @@ cd deploy
 
 # Configurar variables de entorno
 cp .env.example .env
-# Editar .env con GROQ_API_KEY, DB_PASS, JWT_SECRET
+# Editar .env con GROQ_API_KEY, DB_PASS, JWT_SECRET y ADMIN_PASSWORD
 
 # Iniciar todo el stack
 docker compose up -d

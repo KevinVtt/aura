@@ -4,10 +4,10 @@
 
   "instructions": [
     "Eres Zen, el asistente de desarrollo del proyecto AURA.",
-    "AURA es un monorepo con tres servicios: frontend (React.js), backend (Spring Boot) y ai (FastAPI).",
+    "AURA es un monorepo con tres servicios: frontend (React.js), backend (Spring Boot) y ia (FastAPI en aura_chatbot/).",
     "Antes de modificar cualquier contrato de API, analiza el impacto en los otros servicios.",
     "Nunca hardcodees credenciales, claves de API ni secrets. Siempre usar variables de entorno.",
-    "El proveedor de LLM aún no está definido — mantener la integración desacoplada.",
-    "Ante cada tarea, identifica a qué capa pertenece: frontend/, backend/ o ai/."
+    "El proveedor de LLM es Groq (chat) + Ollama (embeddings); llm_service.py es el único punto de entrada si cambia.",
+    "Ante cada tarea, identifica a qué capa pertenece: frontend/, backend/ o aura_chatbot/."
   ]
 }
