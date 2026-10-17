@@ -158,6 +158,18 @@ export default function Chat() {
     } catch {}
   };
 
+  // Borra TODO el historial del usuario logueado (no el de los demás).
+  const vaciarHistorial = async () => {
+    if (!window.confirm('¿Borrar todas tus conversaciones? No se puede deshacer.')) return;
+    try {
+      await api.delete('/chat/conversaciones');
+      setSesionId(null);
+      setMensajes([]);
+      setBusqueda('');
+      cargarConversaciones();
+    } catch {}
+  };
+
   const enviar = async (texto, sesion = sesionId) => {
     const pregunta = String(texto ?? input).trim();
     if (!pregunta || loading || !sesion) return;
@@ -319,6 +331,13 @@ export default function Chat() {
               ))
             )}
           </div>
+
+          {conversaciones.length > 0 && (
+            <button className="btn-vaciar" onClick={vaciarHistorial}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              Vaciar historial
+            </button>
+          )}
         </aside>
 
         {/* Chat principal */}

@@ -324,3 +324,62 @@ describe('Chat - lista de conversaciones', () => {
     unmount(root);
   });
 });
+
+describe('Chat - vaciar historial', () => {
+  const conHistorial = async () => {
+    mockConversaciones([
+      { id: 1, sesionId: 'ses-1', activa: true, fechaInicio: new Date().toISOString(), titulo: 'Una' },
+    ]);
+    const { container, root } = renderChat();
+    await act(async () => {});
+    return { container, root };
+  };
+
+  const click = (el) => {
+    act(() => {
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+  };
+
+  test('el botón aparece solo cuando hay conversaciones', async () => {
+    api.get.mockResolvedValue({ data: [] });
+    const vacio = renderChat();
+    await act(async () => {});
+    expect(vacio.container.querySelector('.btn-vaciar')).toBeNull();
+    unmount(vacio.root);
+
+    const { container, root } = await conHistorial();
+    expect(container.querySelector('.btn-vaciar')).not.toBeNull();
+    unmount(root);
+  });
+
+  test('si se cancela la confirmación no borra nada', async () => {
+    const confirmar = jest.spyOn(window, 'confirm').mockReturnValue(false);
+    const { container, root } = await conHistorial();
+
+    click(container.querySelector('.btn-vaciar'));
+    await act(async () => {});
+
+    expect(confirmar).toHaveBeenCalled();
+    expect(api.delete).not.toHaveBeenCalled();
+    unmount(root);
+    confirmar.mockRestore();
+  });
+
+  test('confirmando borra todas y cierra la conversación abierta', async () => {
+    const confirmar = jest.spyOn(window, 'confirm').mockReturnValue(true);
+    api.delete.mockResolvedValue({ data: {} });
+    const { container, root } = await conHistorial();
+
+    click(container.querySelector('.conv-item'));
+    await act(async () => {});
+
+    click(container.querySelector('.btn-vaciar'));
+    await act(async () => {});
+
+    expect(api.delete).toHaveBeenCalledWith('/chat/conversaciones');
+    expect(container.querySelector('.chat-welcome')).not.toBeNull();
+    unmount(root);
+    confirmar.mockRestore();
+  });
+});

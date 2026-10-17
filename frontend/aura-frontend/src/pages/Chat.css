@@ -82,6 +82,26 @@
   padding: 24px 16px;
 }
 
+/* Al pie de la lista: borra todo el historial del usuario logueado. */
+.btn-vaciar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--danger);
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .2s, border-color .2s;
+}
+
+.btn-vaciar:hover { background: rgba(247,95,95,.1); border-color: rgba(247,95,95,.25); }
+
 .conv-group {
   display: flex;
   flex-direction: column;

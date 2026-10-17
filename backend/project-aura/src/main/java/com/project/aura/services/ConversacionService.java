@@ -117,6 +117,17 @@ public class ConversacionService {
         conversacionRepository.delete(conversacion);
     }
 
+    // Reusa eliminar() conversación por conversación: así se limpia también el
+    // historial de la IA y no hay que duplicar ese manejo de errores.
+    public void eliminarTodas(Usuario usuario) {
+        List<Conversacion> conversaciones = conversacionRepository
+            .findByUsuarioIdOrderByFechaInicioDesc(usuario.getId());
+
+        for (Conversacion conversacion : conversaciones) {
+            eliminar(conversacion.getSesionId(), usuario);
+        }
+    }
+
     // Devuelve la conversación solo si pertenece al usuario que la pide (evita el IDOR).
     private Conversacion conversacionDe(String sesionId, Usuario usuario) {
         Conversacion conversacion = conversacionRepository

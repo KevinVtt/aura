@@ -3,6 +3,7 @@ package com.project.aura.controllers;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -215,6 +216,18 @@ class ChatControllerTest {
 
         mockMvc.perform(delete("/chat/sesion-1"))
             .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@aura.com", roles = "ADMIN")
+    void eliminarTodas_devuelve204() throws Exception {
+        when(usuarioRepository.findByContactoEmail("admin@aura.com")).thenReturn(Optional.of(usuario()));
+        doNothing().when(conversacionService).eliminarTodas(any(Usuario.class));
+
+        mockMvc.perform(delete("/chat/conversaciones"))
+            .andExpect(status().isNoContent());
+
+        verify(conversacionService).eliminarTodas(any(Usuario.class));
     }
 
     @Test

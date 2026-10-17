@@ -68,6 +68,12 @@ public class ChatController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/conversaciones")
+    public ResponseEntity<Void> eliminarTodas() {
+        conversacionService.eliminarTodas(usuarioActual());
+        return ResponseEntity.noContent().build();
+    }
+
     private Usuario usuarioActual() {
         String email = SecurityContextHolder.getContext()
             .getAuthentication().getName();

@@ -326,4 +326,36 @@ class ConversacionServiceTest {
 
         verify(conversacionRepository).delete(conversacion);
     }
+
+    @Test
+    void eliminarTodas_borraTodasLasConversacionesDelUsuario() {
+        Conversacion otra = Conversacion.builder()
+            .id(2L)
+            .sesionId("sesion-2")
+            .usuario(usuario)
+            .fechaInicio(LocalDateTime.now())
+            .activa(false)
+            .build();
+        when(conversacionRepository.findByUsuarioIdOrderByFechaInicioDesc(1L))
+            .thenReturn(List.of(conversacion, otra));
+        when(conversacionRepository.findBySesionId("sesion-1")).thenReturn(Optional.of(conversacion));
+        when(conversacionRepository.findBySesionId("sesion-2")).thenReturn(Optional.of(otra));
+
+        conversacionService.eliminarTodas(usuario);
+
+        verify(fastAPIClient).limpiarHistorial("sesion-1");
+        verify(fastAPIClient).limpiarHistorial("sesion-2");
+        verify(conversacionRepository).delete(conversacion);
+        verify(conversacionRepository).delete(otra);
+    }
+
+    @Test
+    void eliminarTodas_sinConversaciones_noHaceNada() {
+        when(conversacionRepository.findByUsuarioIdOrderByFechaInicioDesc(1L)).thenReturn(List.of());
+
+        conversacionService.eliminarTodas(usuario);
+
+        verify(conversacionRepository, never()).delete(any());
+        verify(fastAPIClient, never()).limpiarHistorial(any());
+    }
 }
