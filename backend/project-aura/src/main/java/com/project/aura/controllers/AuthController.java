@@ -5,14 +5,17 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.*;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.*;
 
 import com.project.aura.dto.LoginRequest;
+import com.project.aura.dto.CambioPasswordRequest;
 import com.project.aura.dto.LoginResponse;
 import com.project.aura.jwt.JwtUtil;
 import com.project.aura.models.Usuario;
 import com.project.aura.repositories.UsuarioRepository;
+import com.project.aura.services.UsuarioService;
 
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +28,7 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final UsuarioRepository usuarioRepository;
     private final JwtUtil jwtUtil;
+    private final UsuarioService usuarioService;
 
     private final ConcurrentHashMap<String, LoginAttempt> intentos = new ConcurrentHashMap<>();
 
@@ -78,7 +82,18 @@ public class AuthController {
             .token(token)
             .nombre(usuario.getNombre())
             .rol(usuario.getRol().name())
+            .mustChangePassword(Boolean.TRUE.equals(usuario.getMustChangePassword()))
             .build());
+    }
+
+    @PostMapping("/cambiar-password")
+    public ResponseEntity<Void> cambiarPassword(
+            @Valid @RequestBody CambioPasswordRequest request,
+            Authentication autenticacion) {
+
+        usuarioService.cambiarPassword(autenticacion.getName(),
+            request.getPasswordActual(), request.getPasswordNueva());
+        return ResponseEntity.noContent().build();
     }
 
 }

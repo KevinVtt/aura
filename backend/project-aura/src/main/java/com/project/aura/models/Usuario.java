@@ -41,11 +41,15 @@ public class Usuario {
     @Column(nullable = false)
     private String nombre;
 
-    @NotBlank(message = "La contraseña es obligatoria")
     @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
     @Column(nullable = false)
     @JsonProperty(access = Access.WRITE_ONLY)
     private String password;
+
+    // Fuerza el cambio de contraseña en el próximo ingreso.
+    @Column
+    @Builder.Default
+    private Boolean mustChangePassword = false;
 
     @NotNull(message = "El rol es obligatorio")
     @Enumerated(EnumType.STRING)

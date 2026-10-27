@@ -37,6 +37,9 @@ class UsuarioServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private MailService mailService;
+
     @InjectMocks
     private UsuarioService usuarioService;
 
@@ -71,6 +74,22 @@ class UsuarioServiceTest {
         assertTrue(resultado.getActivo());
         verify(passwordEncoder).encode("password123");
         verify(usuarioRepository).save(usuario);
+        verify(mailService).enviarAlta("juan@aura.com", "Juan", "password123");
+    }
+
+    @Test
+    void crear_sinPassword_generaUnaYObligaACambiarla() {
+        usuario.setPassword(null);
+        when(usuarioRepository.findByContactoEmail("juan@aura.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(any())).thenReturn("$2a$10$encoded");
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Usuario resultado = usuarioService.crear(usuario);
+
+        assertTrue(resultado.getMustChangePassword());
+        verify(mailService).enviarAlta(org.mockito.ArgumentMatchers.eq("juan@aura.com"),
+            org.mockito.ArgumentMatchers.eq("Juan"),
+            org.mockito.ArgumentMatchers.argThat(clave -> clave.length() == 14));
     }
 
     @Test
@@ -193,6 +212,19 @@ class UsuarioServiceTest {
             .activo(true)
             .contacto(Contacto.builder().email("admin@aura.com").build())
             .build();
+    }
+
+    @Test
+    void cambiarPassword_conActualIncorrecta_noCambia() {
+        usuario.setMustChangePassword(true);
+        when(usuarioRepository.findByContactoEmail("juan@aura.com")).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("mal", "password123")).thenReturn(false);
+
+        assertThrows(ApiException.class,
+            () -> usuarioService.cambiarPassword("juan@aura.com", "mal", "nueva12345"));
+
+        assertTrue(usuario.getMustChangePassword());
+        verify(usuarioRepository, never()).save(any());
     }
 
     @Test

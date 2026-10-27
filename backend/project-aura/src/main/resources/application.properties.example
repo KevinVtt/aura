@@ -22,6 +22,16 @@ aura.allowed-email-domains=${ALLOWED_EMAIL_DOMAINS:}
 # FastAPI
 fastapi.url=http://localhost:8000
 
+# Mail (alta de usuarios)
+spring.mail.host=${SMTP_HOST:smtp.gmail.com}
+spring.mail.port=${SMTP_PORT:587}
+spring.mail.username=${SMTP_USER:}
+spring.mail.password=${SMTP_PASS:}
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+aura.mail.from=${MAIL_FROM:}
+aura.login-url=${APP_URL:http://localhost:3000}/login
+
 # Multipart (una politica de 300+ paginas escaneada supera los 10 MB)
 spring.servlet.multipart.max-file-size=100MB
 spring.servlet.multipart.max-request-size=105MB

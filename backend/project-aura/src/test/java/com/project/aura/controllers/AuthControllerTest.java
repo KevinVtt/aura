@@ -45,6 +45,9 @@ class AuthControllerTest {
     @MockBean
     private JwtUtil jwtUtil;
 
+    @MockBean
+    private UsuarioService usuarioService;
+
     private Usuario usuarioAdmin() {
         Contacto contacto = Contacto.builder().email("admin@aura.com").build();
         return Usuario.builder()
