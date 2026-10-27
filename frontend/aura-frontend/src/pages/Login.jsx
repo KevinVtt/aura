@@ -20,7 +20,7 @@ export default function Login() {
     try {
       const { data } = await api.post('/auth/login', form);
       login(data);
-      navigate(data.rol === 'ADMIN' ? '/admin' : '/chat');
+      navigate(data.mustChangePassword ? '/cambiar-password' : data.rol === 'ADMIN' ? '/admin' : '/chat');
     } catch (err) {
       // El backend responde 429 sin cuerpo al superar los 5 intentos fallidos: sin
       // este caso el mensaje seria "Credenciales incorrectas", que es falso.

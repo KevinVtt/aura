@@ -98,13 +98,14 @@ export default function AdminPanel() {
 
   const crearUsuario = async (e) => {
     e.preventDefault();
-    if (userForm.password.length < 8) {
+    if (userForm.password && userForm.password.length < 8) {
       notify('La contraseña debe tener al menos 8 caracteres', 'error'); return;
     }
     setUserLoading(true);
     try {
-      await api.post('/usuarios', userForm);
-      notify('Usuario creado correctamente');
+      const body = userForm.password ? userForm : { ...userForm, password: undefined };
+      await api.post('/usuarios', body);
+      notify('Usuario creado. Se le envió la contraseña por correo');
       setUserForm({ nombre: '', password: '', rol: 'EMPLEADO', contacto: { email: '', telefono: '' } });
       cargarUsuarios();
     } catch (err) {
@@ -127,6 +128,15 @@ export default function AdminPanel() {
       notify('Rol actualizado');
       cargarUsuarios();
     } catch (err) { notify(motivo(err, 'Error al cambiar el rol'), 'error'); }
+  };
+
+  const reenviarAlta = async (id) => {
+    if (!window.confirm('¿Generar una nueva contraseña y enviarla por correo?')) return;
+    try {
+      await api.post(`/usuarios/${id}/reenviar-alta`);
+      notify('Nueva contraseña enviada por correo');
+      cargarUsuarios();
+    } catch (err) { notify(motivo(err, 'Error al reenviar la contraseña'), 'error'); }
   };
 
   const activarUsuario = async (id) => {
@@ -260,7 +270,7 @@ export default function AdminPanel() {
                 </div>
                 <div className="field">
                   <label>Contraseña</label>
-                  <input type="password" name="password" value={userForm.password} onChange={handleUserForm} placeholder="Mínimo 8 caracteres" required />
+                  <input type="password" name="password" value={userForm.password} onChange={handleUserForm} placeholder="Vacía = se genera sola (mín. 8)" />
                 </div>
                 <div className="field">
                   <label>Rol</label>
@@ -334,9 +344,14 @@ export default function AdminPanel() {
                           Super admin
                         </span>
                       ) : u.activo ? (
-                        <button className="btn-danger" onClick={() => desactivarUsuario(u.id)}>
-                          Desactivar
-                        </button>
+                        <>
+                          <button className="btn-secondary" onClick={() => reenviarAlta(u.id)}>
+                            Reenviar alta
+                          </button>
+                          <button className="btn-danger" onClick={() => desactivarUsuario(u.id)}>
+                            Desactivar
+                          </button>
+                        </>
                       ) : (
                         <button className="btn-secondary" onClick={() => activarUsuario(u.id)}>
                           Activar
