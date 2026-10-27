@@ -16,6 +16,9 @@ jwt.expiration=86400000
 aura.admin.email=${ADMIN_EMAIL:admin@aura.com}
 aura.admin.password=${ADMIN_PASSWORD:}
 
+# Dominios de correo permitidos (vacio = cualquiera), separados por coma
+aura.allowed-email-domains=${ALLOWED_EMAIL_DOMAINS:}
+
 # FastAPI
 fastapi.url=http://localhost:8000
 

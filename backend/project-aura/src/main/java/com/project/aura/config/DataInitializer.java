@@ -31,7 +31,7 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        if (usuarioRepository.count() > 0) {
+        if (usuarioRepository.existsByRol(Rol.ADMIN)) {
             return;
         }
 

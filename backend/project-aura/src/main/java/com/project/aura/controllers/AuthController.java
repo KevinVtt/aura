@@ -11,10 +11,8 @@ import org.springframework.web.bind.annotation.*;
 import com.project.aura.dto.LoginRequest;
 import com.project.aura.dto.LoginResponse;
 import com.project.aura.jwt.JwtUtil;
-import com.project.aura.models.Contacto;
 import com.project.aura.models.Usuario;
 import com.project.aura.repositories.UsuarioRepository;
-import com.project.aura.services.UsuarioService;
 
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,7 +24,6 @@ public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final UsuarioRepository usuarioRepository;
-    private final UsuarioService usuarioService;
     private final JwtUtil jwtUtil;
 
     private final ConcurrentHashMap<String, LoginAttempt> intentos = new ConcurrentHashMap<>();
@@ -84,33 +81,4 @@ public class AuthController {
             .build());
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<LoginResponse> register(
-        @Valid @RequestBody Usuario request) {
-
-        Contacto contacto = Contacto.builder()
-            .email(request.getContacto().getEmail())
-            .telefono(request.getContacto().getTelefono())
-            .build();
-
-        Usuario usuario = Usuario.builder()
-            .nombre(request.getNombre())
-            .password(request.getPassword())
-            .rol(request.getRol())
-            .contacto(contacto)
-            .build();
-
-        usuarioService.crear(usuario);
-
-        String token = jwtUtil.generarToken(
-            contacto.getEmail(),
-            usuario.getRol().name()
-        );
-
-        return ResponseEntity.ok(LoginResponse.builder()
-            .token(token)
-            .nombre(usuario.getNombre())
-            .rol(usuario.getRol().name())
-            .build());
-    }
 }

@@ -53,7 +53,6 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/login").permitAll()
-                .requestMatchers("/auth/register").hasRole("ADMIN")
                 .requestMatchers("/usuarios/**").hasRole("ADMIN")
                 .requestMatchers("/documentos/**").hasRole("ADMIN")
                 .requestMatchers("/chat/**").hasAnyRole("ADMIN", "EMPLEADO")

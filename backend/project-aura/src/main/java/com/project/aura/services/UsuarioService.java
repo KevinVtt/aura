@@ -25,6 +25,10 @@ public class UsuarioService {
     @Value("${aura.admin.email:admin@aura.com}")
     private String adminEmail;
 
+    // Lista separada por comas (ALLOWED_EMAIL_DOMAINS). Vacia = cualquier dominio.
+    @Value("${aura.allowed-email-domains:}")
+    private List<String> dominiosPermitidos;
+
     public List<Usuario> listarTodos() {
         List<Usuario> usuarios = usuarioRepository.findAll();
         for (Usuario usuario : usuarios) {
@@ -44,7 +48,13 @@ public class UsuarioService {
     }
 
     public Usuario crear(Usuario usuario) {
-        if (usuarioRepository.findByContactoEmail(usuario.getContacto().getEmail()).isPresent()) {
+        String email = usuario.getContacto().getEmail();
+        if (!dominiosPermitidos.isEmpty()
+                && !dominiosPermitidos.contains(email.substring(email.indexOf('@') + 1).toLowerCase())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                "Solo se permiten correos de los dominios: " + String.join(", ", dominiosPermitidos));
+        }
+        if (usuarioRepository.findByContactoEmail(email).isPresent()) {
             throw new RuntimeException("El email ya está registrado");
         }
         usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));

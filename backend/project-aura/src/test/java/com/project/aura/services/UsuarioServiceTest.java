@@ -18,9 +18,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.project.aura.exception.ApiException;
 import com.project.aura.models.Contacto;
 import com.project.aura.models.Usuario;
 import com.project.aura.models.enums.Rol;
@@ -45,6 +47,7 @@ class UsuarioServiceTest {
         // El email del super admin llega por @Value; en un test unitario hay
         // que inyectarlo a mano.
         ReflectionTestUtils.setField(usuarioService, "adminEmail", "admin@aura.com");
+        ReflectionTestUtils.setField(usuarioService, "dominiosPermitidos", List.of("aura.com"));
         Contacto contacto = Contacto.builder().email("juan@aura.com").build();
         usuario = Usuario.builder()
             .id(1L)
@@ -68,6 +71,16 @@ class UsuarioServiceTest {
         assertTrue(resultado.getActivo());
         verify(passwordEncoder).encode("password123");
         verify(usuarioRepository).save(usuario);
+    }
+
+    @Test
+    void crear_dominioNoPermitido_lanzaExcepcionSinGuardar() {
+        usuario.getContacto().setEmail("juan@gmail.com");
+
+        ApiException ex = assertThrows(ApiException.class, () -> usuarioService.crear(usuario));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        verify(usuarioRepository, never()).save(any());
     }
 
     @Test
