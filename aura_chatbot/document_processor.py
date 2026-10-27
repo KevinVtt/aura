@@ -1,6 +1,6 @@
 import chromadb,os
 from pypdf import PdfReader
-from llm_service import generar_embedding
+from llm_service import generar_embedding, generar_embeddings
 
 # Base de datos vectorial local (se guarda en ./chroma_db/)
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
@@ -8,6 +8,7 @@ coleccion = chroma_client.get_or_create_collection(name="documentos_pyme")
 
 CHUNK_SIZE = 500   # palabras por chunk
 OVERLAP    = 50    # palabras que se repiten entre chunks
+LOTE       = 32    # chunks por pedido de embeddings
 
 
 def _extraer_texto(ruta_pdf: str) -> str:
@@ -47,7 +48,10 @@ def procesar_pdf(ruta_pdf: str, nombre_doc: str):
     texto = _extraer_texto(ruta_pdf)
 
     if not texto.strip():
-        raise ValueError("No se pudo extraer texto del PDF.")
+        raise ValueError(
+            "El PDF no tiene texto seleccionable (parece escaneado). "
+            "Subilo en PDF con texto o pasalo antes por un programa de OCR."
+        )
 
     chunks = _dividir_en_chunks(texto)
     print(f"   -> {len(chunks)} chunks generados")
@@ -56,15 +60,19 @@ def procesar_pdf(ruta_pdf: str, nombre_doc: str):
     # en silencio y la IA seguiria respondiendo con el texto viejo.
     coleccion.delete(where={"fuente": nombre_doc})
 
-    # shortcut: one embedding call per chunk, batch when the ollama batch API is adopted
-    for i, chunk in enumerate(chunks):
-        embedding = generar_embedding(chunk)
+    for inicio in range(0, len(chunks), LOTE):
+        lote = chunks[inicio:inicio + LOTE]
+        embeddings = generar_embeddings(lote)
         coleccion.add(
-            ids=[f"{nombre_doc}_chunk_{i}"],
-            embeddings=[embedding],
-            documents=[chunk],
-            metadatas=[{"fuente": nombre_doc, "chunk_index": i}]
+            ids=[f"{nombre_doc}_chunk_{inicio + i}" for i in range(len(lote))],
+            embeddings=embeddings,
+            documents=lote,
+            metadatas=[
+                {"fuente": nombre_doc, "chunk_index": inicio + i}
+                for i in range(len(lote))
+            ]
         )
+        print(f"   -> {inicio + len(lote)}/{len(chunks)} chunks guardados")
 
     print(f"   OK: guardado en ChromaDB")
 

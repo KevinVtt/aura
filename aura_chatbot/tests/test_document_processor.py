@@ -61,7 +61,7 @@ def test_extraer_texto_concatena_paginas(aura_modules, monkeypatch):
 def test_procesar_pdf_guarda_chunks_en_chroma(aura_modules, monkeypatch):
     dp = aura_modules.document_processor
     monkeypatch.setattr(dp, "_extraer_texto", lambda ruta: "hola mundo")
-    monkeypatch.setattr(dp, "generar_embedding", lambda texto: [0.1, 0.2])
+    monkeypatch.setattr(dp, "generar_embeddings", lambda textos: [[0.1, 0.2] for _ in textos])
     coleccion = MagicMock()
     monkeypatch.setattr(dp, "coleccion", coleccion)
 
@@ -77,10 +77,34 @@ def test_procesar_pdf_guarda_chunks_en_chroma(aura_modules, monkeypatch):
     )
 
 
+def test_procesar_pdf_pide_embeddings_en_lotes(aura_modules, monkeypatch):
+    """Un PDF largo no puede hacer un pedido a Ollama por chunk: tarda minutos."""
+    dp = aura_modules.document_processor
+    monkeypatch.setattr(dp, "LOTE", 2)
+    monkeypatch.setattr(
+        dp, "_extraer_texto",
+        lambda ruta: " ".join(f"palabra{i}" for i in range(dp.CHUNK_SIZE * 4)),
+    )
+    pedidos = []
+
+    def fake_embeddings(textos):
+        pedidos.append(len(textos))
+        return [[0.5] for _ in textos]
+
+    monkeypatch.setattr(dp, "generar_embeddings", fake_embeddings)
+    coleccion = MagicMock()
+    monkeypatch.setattr(dp, "coleccion", coleccion)
+
+    dp.procesar_pdf("x.pdf", "x.pdf")
+
+    assert pedidos == [2, 2, 1]
+    assert coleccion.add.call_count == 3
+
+
 def test_procesar_pdf_texto_vacio_lanza_valueerror(aura_modules, monkeypatch):
     dp = aura_modules.document_processor
     monkeypatch.setattr(dp, "_extraer_texto", lambda ruta: "   ")
-    with pytest.raises(ValueError, match="No se pudo extraer texto"):
+    with pytest.raises(ValueError, match="no tiene texto seleccionable"):
         dp.procesar_pdf("x.pdf", "x.pdf")
 
 

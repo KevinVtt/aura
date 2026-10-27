@@ -58,7 +58,7 @@ def nueva_sesion():
 
 
 @app.post("/documentos/subir")
-async def subir_documento(archivo: UploadFile = File(...)):
+def subir_documento(archivo: UploadFile = File(...)):
     """
     Recibe un PDF, lo guarda y lo procesa (chunking + embeddings → ChromaDB).
     """

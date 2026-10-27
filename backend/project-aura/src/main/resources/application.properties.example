@@ -19,6 +19,9 @@ aura.admin.password=${ADMIN_PASSWORD:}
 # FastAPI
 fastapi.url=http://localhost:8000
 
-# Multipart
-spring.servlet.multipart.max-file-size=10MB
-spring.servlet.multipart.max-request-size=10MB
+# Multipart (una politica de 300+ paginas escaneada supera los 10 MB)
+spring.servlet.multipart.max-file-size=100MB
+spring.servlet.multipart.max-request-size=105MB
+# Terminar de leer el cuerpo aunque se pase del limite: si no, el navegador
+# ve un corte de conexion en vez del mensaje de error.
+server.tomcat.max-swallow-size=-1

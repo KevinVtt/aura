@@ -87,7 +87,16 @@ public class FastAPIClient {
         body.add("archivo", resource);
 
         HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
-        restTemplate.postForEntity(fastapiUrl + "/documentos/subir", request, Map.class);
+        try {
+            restTemplate.postForEntity(fastapiUrl + "/documentos/subir", request, Map.class);
+        } catch (RestClientResponseException e) {
+            // La IA explica en `detail` por que no pudo (PDF escaneado, corrupto).
+            // Sin esto el usuario ve "400 Bad Request" y no se entera de nada.
+            HttpStatus status = e.getStatusCode().is4xxClientError()
+                ? HttpStatus.BAD_REQUEST
+                : HttpStatus.BAD_GATEWAY;
+            throw new ResponseStatusException(status, detalleDe(e));
+        }
     }
 
     public void limpiarHistorial(String sesionId) {
