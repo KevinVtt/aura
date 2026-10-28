@@ -56,6 +56,61 @@ def test_extraer_texto_concatena_paginas(aura_modules, monkeypatch):
     assert dp._extraer_texto("cualquier.pdf") == "Hola mundo"
 
 
+def test_extraer_texto_docx_incluye_parrafos_y_tablas(tmp_path, aura_modules):
+    from docx import Document as DocxDocument
+
+    dp = aura_modules.document_processor
+    ruta = tmp_path / "politicas.docx"
+    documento = DocxDocument()
+    documento.add_paragraph("Licencia anual de 21 días.")
+    tabla = documento.add_table(rows=1, cols=2)
+    tabla.rows[0].cells[0].text = "Área"
+    tabla.rows[0].cells[1].text = "Tope"
+    documento.save(ruta)
+
+    texto = dp._extraer_texto(str(ruta))
+
+    assert "Licencia anual de 21 días." in texto
+    assert "Área | Tope" in texto
+    assert texto.index("Licencia") < texto.index("Área")
+
+
+def test_extraer_texto_xlsx_una_fila_por_linea(tmp_path, aura_modules):
+    from openpyxl import Workbook
+
+    dp = aura_modules.document_processor
+    ruta = tmp_path / "sueldos.xlsx"
+    libro = Workbook()
+    hoja = libro.active
+    hoja.title = "Sueldos"
+    hoja.append(["Puesto", "Sueldo"])
+    hoja.append([None, None])          # fila vacía: no debe aparecer
+    hoja.append(["Analista", 1500])
+    libro.save(ruta)
+
+    texto = dp._extraer_texto(str(ruta))
+
+    assert "Hoja: Sueldos" in texto
+    assert "Puesto | Sueldo" in texto
+    assert "Analista | 1500" in texto
+    assert "\n\n" not in texto
+
+
+def test_extraer_texto_formato_viejo_pide_convertir(aura_modules):
+    dp = aura_modules.document_processor
+    with pytest.raises(ValueError, match="Guardalos como .docx o .xlsx"):
+        dp._extraer_texto("contrato.doc")
+
+
+def test_extraer_texto_archivo_danado_lanza_valueerror(tmp_path, aura_modules):
+    dp = aura_modules.document_processor
+    ruta = tmp_path / "roto.docx"
+    ruta.write_bytes(b"esto no es un docx")
+
+    with pytest.raises(ValueError, match="dañado"):
+        dp.procesar_documento(str(ruta), "roto.docx")
+
+
 # ── procesar_pdf ─────────────────────────────────────────────────────────────
 
 def test_procesar_pdf_guarda_chunks_en_chroma(aura_modules, monkeypatch):
@@ -65,7 +120,7 @@ def test_procesar_pdf_guarda_chunks_en_chroma(aura_modules, monkeypatch):
     coleccion = MagicMock()
     monkeypatch.setattr(dp, "coleccion", coleccion)
 
-    dp.procesar_pdf("./pdfs/doc.pdf", "doc.pdf")
+    dp.procesar_documento("./pdfs/doc.pdf", "doc.pdf")
 
     # una version anterior del mismo archivo se borra antes de guardar la nueva
     coleccion.delete.assert_called_once_with(where={"fuente": "doc.pdf"})
@@ -95,17 +150,17 @@ def test_procesar_pdf_pide_embeddings_en_lotes(aura_modules, monkeypatch):
     coleccion = MagicMock()
     monkeypatch.setattr(dp, "coleccion", coleccion)
 
-    dp.procesar_pdf("x.pdf", "x.pdf")
+    dp.procesar_documento("x.pdf", "x.pdf")
 
     assert pedidos == [2, 2, 1]
     assert coleccion.add.call_count == 3
 
 
-def test_procesar_pdf_texto_vacio_lanza_valueerror(aura_modules, monkeypatch):
+def test_procesar_documento_texto_vacio_lanza_valueerror(aura_modules, monkeypatch):
     dp = aura_modules.document_processor
     monkeypatch.setattr(dp, "_extraer_texto", lambda ruta: "   ")
-    with pytest.raises(ValueError, match="no tiene texto seleccionable"):
-        dp.procesar_pdf("x.pdf", "x.pdf")
+    with pytest.raises(ValueError, match="no tiene texto"):
+        dp.procesar_documento("x.pdf", "x.pdf")
 
 
 # ── buscar_chunks_relevantes ─────────────────────────────────────────────────

@@ -60,24 +60,28 @@ def nueva_sesion():
 @app.post("/documentos/subir")
 def subir_documento(archivo: UploadFile = File(...)):
     """
-    Recibe un PDF, lo guarda y lo procesa (chunking + embeddings → ChromaDB).
+    Recibe un PDF, Word o Excel, lo guarda y lo procesa (chunking + embeddings → ChromaDB).
     """
     nombre = os.path.basename(archivo.filename or "")
-    if not nombre.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF.")
+    if not nombre.lower().endswith((".pdf", ".docx", ".xlsx")):
+        raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF, Word (.docx) o Excel (.xlsx).")
 
     ruta = f"./pdfs/{nombre}"
     with open(ruta, "wb") as f:
         shutil.copyfileobj(archivo.file, f)
 
+    if os.path.getsize(ruta) == 0:
+        os.remove(ruta)
+        raise HTTPException(status_code=400, detail="El archivo está vacío.")
+
     try:
-        dp.procesar_pdf(ruta, nombre)
+        dp.procesar_documento(ruta, nombre)
     except ValueError as e:
-        # Mensaje controlado de procesar_pdf (PDF sin texto extraíble): seguro de exponer.
+        # Mensaje controlado de procesar_documento (sin texto, formato viejo, dañado): seguro de exponer.
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        print(f"   [ERROR] procesar_pdf falló: {e}")
-        raise HTTPException(status_code=500, detail="No se pudo procesar el PDF.")
+        print(f"   [ERROR] procesar_documento falló: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo procesar el documento.")
 
     return {"mensaje": f"'{nombre}' procesado correctamente."}
 

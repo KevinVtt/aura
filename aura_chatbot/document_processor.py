@@ -1,5 +1,9 @@
 import chromadb,os
 from pypdf import PdfReader
+from docx import Document as DocxDocument
+from docx.table import Table
+from docx.text.paragraph import Paragraph
+from openpyxl import load_workbook
 from llm_service import generar_embedding, generar_embeddings
 
 # Base de datos vectorial local (se guarda en ./chroma_db/)
@@ -10,14 +14,74 @@ CHUNK_SIZE = 500   # palabras por chunk
 OVERLAP    = 50    # palabras que se repiten entre chunks
 LOTE       = 32    # chunks por pedido de embeddings
 
+# Topes para que un Excel enorme no se coma la memoria del servicio.
+MAX_CARACTERES = int(os.environ.get("MAX_CARACTERES_DOC", "2000000"))
+MAX_FILAS_XLSX = int(os.environ.get("MAX_FILAS_XLSX", "20000"))
 
-def _extraer_texto(ruta_pdf: str) -> str:
+
+def _extraer_texto_pdf(ruta: str) -> str:
     """Lee todas las páginas del PDF y devuelve el texto completo."""
-    reader = PdfReader(ruta_pdf)
+    reader = PdfReader(ruta)
     texto = ""
     for pagina in reader.pages:
         texto += pagina.extract_text() or ""
     return texto
+
+
+def _extraer_texto_docx(ruta: str) -> str:
+    """Párrafos y tablas de un .docx, en el orden en que aparecen."""
+    documento = DocxDocument(ruta)
+    partes = []
+    for hijo in documento.element.body.iterchildren():
+        if hijo.tag.endswith("}p"):
+            texto = Paragraph(hijo, documento).text.strip()
+            if texto:
+                partes.append(texto)
+        elif hijo.tag.endswith("}tbl"):
+            for fila in Table(hijo, documento).rows:
+                celdas = [c.text.strip() for c in fila.cells]
+                if any(celdas):
+                    partes.append(" | ".join(celdas))
+    return "\n".join(partes)
+
+
+def _extraer_texto_xlsx(ruta: str) -> str:
+    """Cada hoja como texto, una fila por línea y las celdas separadas por ' | '."""
+    libro = load_workbook(ruta, read_only=True, data_only=True)
+    partes = []
+    filas = 0
+    try:
+        for hoja in libro.worksheets:
+            partes.append(f"Hoja: {hoja.title}")
+            for fila in hoja.iter_rows(values_only=True):
+                celdas = [str(c).strip() for c in fila if c is not None and str(c).strip()]
+                if not celdas:
+                    continue
+                if filas >= MAX_FILAS_XLSX:
+                    print(f"   [aviso] corte en {MAX_FILAS_XLSX} filas: el resto del Excel no se indexó")
+                    return "\n".join(partes)
+                filas += 1
+                partes.append(" | ".join(celdas))
+    finally:
+        libro.close()
+    return "\n".join(partes)
+
+
+def _extraer_texto(ruta: str) -> str:
+    """Devuelve el texto plano según la extensión del archivo."""
+    extension = os.path.splitext(ruta)[1].lower()
+    if extension == ".pdf":
+        return _extraer_texto_pdf(ruta)
+    if extension == ".docx":
+        return _extraer_texto_docx(ruta)
+    if extension == ".xlsx":
+        return _extraer_texto_xlsx(ruta)
+    if extension in (".doc", ".xls"):
+        raise ValueError(
+            "Los archivos .doc y .xls (formatos viejos de Office) no se pueden leer. "
+            "Guardalos como .docx o .xlsx y subilos de nuevo."
+        )
+    raise ValueError(f"Formato no soportado ({extension or 'sin extensión'}). Se aceptan PDF, .docx y .xlsx.")
 
 # Se divide en chunks con solapamiento para mejorar la coherencia de los fragmentos y evitar cortar ideas a la mitad.
 def _dividir_en_chunks(texto: str) -> list[str]:
@@ -36,22 +100,32 @@ def _dividir_en_chunks(texto: str) -> list[str]:
     return chunks
 
 
-def procesar_pdf(ruta_pdf: str, nombre_doc: str):
+def procesar_documento(ruta: str, nombre_doc: str):
     """
     Pipeline completo:
-    1. Extrae texto del PDF
+    1. Extrae texto (PDF, .docx o .xlsx)
     2. Divide en chunks
     3. Genera embedding de cada chunk
     4. Guarda en ChromaDB
     """
     print(f"\n[doc] Procesando: {nombre_doc}")
-    texto = _extraer_texto(ruta_pdf)
+    try:
+        texto = _extraer_texto(ruta)
+    except ValueError:
+        raise
+    except Exception as e:
+        print(f"   [ERROR] no se pudo leer {nombre_doc}: {e}")
+        raise ValueError("No se pudo leer el archivo: puede estar dañado o no ser un archivo válido.")
 
     if not texto.strip():
         raise ValueError(
-            "El PDF no tiene texto seleccionable (parece escaneado). "
-            "Subilo en PDF con texto o pasalo antes por un programa de OCR."
+            "El documento no tiene texto que se pueda leer. Si es un PDF, "
+            "probablemente esté escaneado: pasalo antes por un programa de OCR."
         )
+
+    if len(texto) > MAX_CARACTERES:
+        print(f"   [aviso] texto recortado a {MAX_CARACTERES} caracteres")
+        texto = texto[:MAX_CARACTERES]
 
     chunks = _dividir_en_chunks(texto)
     print(f"   -> {len(chunks)} chunks generados")
