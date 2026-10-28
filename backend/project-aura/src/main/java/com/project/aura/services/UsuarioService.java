@@ -17,6 +17,7 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -61,7 +62,10 @@ public class UsuarioService {
 
     @Transactional
     public Usuario crear(Usuario usuario) {
-        String email = usuario.getContacto().getEmail();
+        // Se guarda normalizado para que "Juan@Empresa.com " y "juan@empresa.com"
+        // sean el mismo usuario y el login no dependa de mayusculas ni espacios.
+        String email = usuario.getContacto().getEmail().trim().toLowerCase(Locale.ROOT);
+        usuario.getContacto().setEmail(email);
         if (!dominiosPermitidos.isEmpty()
                 && !dominiosPermitidos.contains(email.substring(email.indexOf('@') + 1).toLowerCase())) {
             throw new ApiException(HttpStatus.BAD_REQUEST,

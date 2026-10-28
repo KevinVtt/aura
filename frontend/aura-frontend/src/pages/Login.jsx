@@ -16,9 +16,14 @@ export default function Login() {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+    const email = form.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Ingresá un correo válido, por ejemplo nombre@empresa.com');
+      return;
+    }
     setLoading(true);
     try {
-      const { data } = await api.post('/auth/login', form);
+      const { data } = await api.post('/auth/login', { ...form, email });
       login(data);
       navigate(data.mustChangePassword ? '/cambiar-password' : data.rol === 'ADMIN' ? '/admin' : '/chat');
     } catch (err) {
@@ -27,7 +32,7 @@ export default function Login() {
       setError(
         err.response?.status === 429
           ? 'Demasiados intentos fallidos. Esperá 15 minutos e intentá de nuevo.'
-          : err.response?.data?.error || 'Credenciales incorrectas'
+          : err.response?.data?.error || err.response?.data?.email || 'Credenciales incorrectas'
       );
     } finally {
       setLoading(false);

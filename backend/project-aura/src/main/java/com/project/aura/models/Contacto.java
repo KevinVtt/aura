@@ -22,6 +22,10 @@ public class Contacto {
 
     @NotBlank(message = "El email es obligatorio")
     @Email(message = "El email no tiene un formato válido")
+    // @Email acepta "user@servidor" sin dominio de nivel superior; un correo real
+    // siempre tiene un punto despues de la arroba.
+    @Pattern(regexp = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+             message = "El email no tiene un formato válido")
     @Column(nullable = false, unique = true)
     private String email;
 

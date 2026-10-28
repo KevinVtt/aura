@@ -61,6 +61,20 @@ class AuthControllerTest {
     }
 
     @Test
+    void login_normalizaElEmail() throws Exception {
+        when(authenticationManager.authenticate(any())).thenReturn(mock(Authentication.class));
+        when(usuarioRepository.findByContactoEmail("admin@aura.com")).thenReturn(Optional.of(usuarioAdmin()));
+        when(jwtUtil.generarToken("admin@aura.com", "ADMIN")).thenReturn("token-jwt");
+
+        mockMvc.perform(post("/auth/login")
+                .with(req -> { req.setRemoteAddr("10.0.0.2"); return req; })
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"Admin@AURA.com\",\"password\":\"admin123\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.token").value("token-jwt"));
+    }
+
+    @Test
     void login_exitoso_devuelve200ConToken() throws Exception {
         when(authenticationManager.authenticate(any())).thenReturn(mock(Authentication.class));
         when(usuarioRepository.findByContactoEmail("admin@aura.com")).thenReturn(Optional.of(usuarioAdmin()));
@@ -128,6 +142,16 @@ class AuthControllerTest {
                 .content("{\"password\":\"admin123\"}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.email").value("El email es obligatorio"));
+    }
+
+    @Test
+    void login_emailSinDominioReal_devuelve400() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                .with(req -> { req.setRemoteAddr("10.0.0.5"); return req; })
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"otro@ejemplo\",\"password\":\"admin123\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.email").value("El email no tiene un formato válido"));
     }
 
     @Test

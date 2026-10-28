@@ -18,6 +18,7 @@ import com.project.aura.repositories.UsuarioRepository;
 import com.project.aura.services.UsuarioService;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
@@ -43,6 +44,10 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest) {
 
+        // Se normaliza igual que al crear usuarios: el login no debe fallar por
+        // una mayuscula o un espacio de mas.
+        String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
+
         // Purgar ventanas vencidas: la clave es la IP real, no un header falseable.
         Instant ahora = Instant.now();
         intentos.values().removeIf(a -> ahora.isAfter(a.expira()));
@@ -57,7 +62,7 @@ public class AuthController {
         try {
             authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                    request.getEmail(),
+                    email,
                     request.getPassword()
                 )
             );
@@ -70,7 +75,7 @@ public class AuthController {
         intentos.remove(ip);
 
         Usuario usuario = usuarioRepository
-            .findByContactoEmail(request.getEmail())
+            .findByContactoEmail(email)
             .orElseThrow();
 
         String token = jwtUtil.generarToken(
