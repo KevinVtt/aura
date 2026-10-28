@@ -30,6 +30,9 @@ export default function Navbar() {
         <Link to="/chat" className={`nav-link ${isActive('/chat') ? 'active' : ''}`}>
           Chat
         </Link>
+        <Link to="/cambiar-password" className={`nav-link ${isActive('/cambiar-password') ? 'active' : ''}`}>
+          Cambiar contraseña
+        </Link>
       </div>
 
       <div className="navbar-user">

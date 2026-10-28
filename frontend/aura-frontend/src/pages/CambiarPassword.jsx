@@ -40,7 +40,11 @@ export default function CambiarPassword() {
 
       <div className="auth-card fade-in" style={{ animationDelay: '.1s' }}>
         <h2 className="auth-title">Cambiá tu contraseña</h2>
-        <p className="auth-desc">Es tu primer ingreso. Elegí una contraseña nueva para continuar.</p>
+        <p className="auth-desc">
+          {user.mustChangePassword
+            ? 'Es tu primer ingreso. Elegí una contraseña nueva para continuar.'
+            : 'Ingresá tu contraseña actual y elegí una nueva.'}
+        </p>
 
         {error && <div className="auth-error">{error}</div>}
 
