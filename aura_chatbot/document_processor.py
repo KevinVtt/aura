@@ -151,8 +151,11 @@ def procesar_documento(ruta: str, nombre_doc: str):
     print(f"   OK: guardado en ChromaDB")
 
 
-def buscar_chunks_relevantes(pregunta: str, top_k: int = 3) -> list[dict]:
-    """Devuelve los `top_k` fragmentos mas cercanos a la pregunta.
+def buscar_chunks_relevantes(
+    pregunta: str, top_k: int = 3, max_otros: int = 2
+) -> list[dict]:
+    """Devuelve los `top_k` fragmentos mas cercanos a la pregunta, mas el mejor
+    fragmento de hasta `max_otros` documentos que quedaron afuera.
 
     No filtra por distancia, a proposito. Hubo un umbral fijo (250) y hubo que
     sacarlo: medido con nomic-embed-text sobre un PDF real de 2 paginas, una
@@ -166,11 +169,20 @@ def buscar_chunks_relevantes(pregunta: str, top_k: int = 3) -> list[dict]:
     prompt de no inventar y decir "No tengo informacion" cuando no alcanzan.
     Probado tambien achicar los fragmentos (hasta 60 palabras): los rangos
     siguen solapandose, asi que no es cuestion del tamano del chunk.
+
+    Por que ademas se agrega uno por documento: con varios documentos cargados,
+    el fragmento que responde puede quedar 5to. Medido con 4 documentos, la
+    pregunta sobre un .docx dio distancia 373 y quedo detras de 4 fragmentos de
+    otros dos archivos; con solo los 3 primeros nunca llegaba al modelo y el
+    bot contestaba "No tengo informacion" teniendo la respuesta.
     """
     vector_pregunta = generar_embedding(pregunta)
+    # Se piden mas resultados que los que se van a usar para poder rescatar el
+    # mejor fragmento de cada documento. Si la coleccion tiene menos, Chroma
+    # devuelve los que haya.
     resultados = coleccion.query(
         query_embeddings=[vector_pregunta],
-        n_results=top_k,
+        n_results=max(top_k + max_otros + 5, 10),
         include=["documents", "metadatas", "distances"]
     )
 
@@ -184,12 +196,26 @@ def buscar_chunks_relevantes(pregunta: str, top_k: int = 3) -> list[dict]:
         print(f"Texto: {doc[:150]}")
         print("---")
 
-    return [
-        {"texto": doc, "fuente": meta["fuente"]}
-        for doc, meta in zip(
-            resultados["documents"][0], resultados["metadatas"][0]
-        )
-    ]
+    todos = list(zip(
+        resultados["documents"][0],
+        resultados["metadatas"][0],
+        resultados["distances"][0]
+    ))
+    elegidos = todos[:top_k]
+    fuentes = {meta["fuente"] for _, meta, _ in elegidos}
+
+    # Rescate: el fragmento mejor rankeado de cada documento que no entro.
+    for doc, meta, dist in todos[top_k:]:
+        if max_otros == 0:
+            break
+        if meta["fuente"] in fuentes:
+            continue
+        print(f"--- rescate (fuera del top {top_k}): {dist:.1f} | {meta['fuente']}")
+        elegidos.append((doc, meta, dist))
+        fuentes.add(meta["fuente"])
+        max_otros -= 1
+
+    return [{"texto": doc, "fuente": meta["fuente"]} for doc, meta, _ in elegidos]
 
 
 def listar_documentos() -> list[str]:

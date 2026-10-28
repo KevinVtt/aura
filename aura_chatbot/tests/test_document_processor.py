@@ -184,7 +184,7 @@ def test_buscar_chunks_relevantes(aura_modules, monkeypatch):
     ]
     coleccion.query.assert_called_once_with(
         query_embeddings=[[0.5]],
-        n_results=2,
+        n_results=10,
         include=["documents", "metadatas", "distances"],
     )
 
@@ -214,6 +214,57 @@ def test_buscar_chunks_relevantes_no_descarta_por_distancia(aura_modules, monkey
         {"texto": "cerca", "fuente": "a.pdf"},
         {"texto": "lejos", "fuente": "b.pdf"},
     ]
+
+
+def test_buscar_chunks_relevantes_rescata_el_documento_que_quedo_afuera(
+    aura_modules, monkeypatch
+):
+    """Con varios documentos, el fragmento que responde puede quedar 5to.
+
+    Medido con 4 documentos reales: la pregunta del .docx dio distancia 373 y
+    quedo detras de 4 fragmentos de otros dos archivos. Con solo los 3 primeros
+    el bot contestaba "No tengo informacion" teniendo la respuesta adentro."""
+    dp = aura_modules.document_processor
+    monkeypatch.setattr(dp, "generar_embedding", lambda texto: [0.5])
+    coleccion = MagicMock()
+    coleccion.query.return_value = {
+        "documents": [["c1", "c2", "c3", "c4", "responde"]],
+        "metadatas": [[
+            {"fuente": "calendario.pdf"},
+            {"fuente": "calendario.pdf"},
+            {"fuente": "guia.pdf"},
+            {"fuente": "guia.pdf"},
+            {"fuente": "politicas.docx"},
+        ]],
+        "distances": [[290.0, 308.4, 308.6, 332.1, 373.1]],
+    }
+    monkeypatch.setattr(dp, "coleccion", coleccion)
+
+    resultado = dp.buscar_chunks_relevantes("pregunta", top_k=3, max_otros=2)
+
+    assert [c["texto"] for c in resultado] == ["c1", "c2", "c3", "responde"]
+
+
+def test_buscar_chunks_relevantes_limita_los_documentos_extra(
+    aura_modules, monkeypatch
+):
+    """El rescate no crece sin control: entran como mucho `max_otros` documentos."""
+    dp = aura_modules.document_processor
+    monkeypatch.setattr(dp, "generar_embedding", lambda texto: [0.5])
+    coleccion = MagicMock()
+    coleccion.query.return_value = {
+        "documents": [["c1", "c2", "c3", "d4", "d5", "d6"]],
+        "metadatas": [[
+            {"fuente": "a.pdf"}, {"fuente": "a.pdf"}, {"fuente": "a.pdf"},
+            {"fuente": "b.pdf"}, {"fuente": "c.pdf"}, {"fuente": "d.pdf"},
+        ]],
+        "distances": [[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]],
+    }
+    monkeypatch.setattr(dp, "coleccion", coleccion)
+
+    resultado = dp.buscar_chunks_relevantes("pregunta", top_k=3, max_otros=2)
+
+    assert [c["texto"] for c in resultado] == ["c1", "c2", "c3", "d4", "d5"]
 
 
 # ── listar_documentos ────────────────────────────────────────────────────────
