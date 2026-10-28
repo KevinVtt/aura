@@ -30,6 +30,9 @@ public class Documento {
     @Column(name = "fecha_subida", nullable = false)
     private LocalDateTime fechaSubida;
 
+    @Column(name = "tamano_bytes")
+    private Long tamanoBytes;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean activo = true;

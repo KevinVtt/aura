@@ -106,6 +106,49 @@ class DocumentoControllerTest {
 
     @Test
     @WithMockUser(username = "admin@aura.com", roles = "ADMIN")
+    void subirDocx_devuelve200() throws Exception {
+        when(usuarioRepository.findByContactoEmail("admin@aura.com")).thenReturn(Optional.of(admin()));
+        when(documentoService.subir(eq("politicas.docx"), any(byte[].class), any(Usuario.class)))
+            .thenReturn(documento());
+
+        MockMultipartFile archivo = new MockMultipartFile(
+            "archivo", "politicas.docx",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "PK\u0003\u0004 contenido falso".getBytes());
+
+        mockMvc.perform(multipart("/documentos/subir").file(archivo))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@aura.com", roles = "ADMIN")
+    void subirXlsx_devuelve200() throws Exception {
+        when(usuarioRepository.findByContactoEmail("admin@aura.com")).thenReturn(Optional.of(admin()));
+        when(documentoService.subir(eq("sueldos.xlsx"), any(byte[].class), any(Usuario.class)))
+            .thenReturn(documento());
+
+        MockMultipartFile archivo = new MockMultipartFile(
+            "archivo", "sueldos.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "PK\u0003\u0004 contenido falso".getBytes());
+
+        mockMvc.perform(multipart("/documentos/subir").file(archivo))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@aura.com", roles = "ADMIN")
+    void subirPdfConFirmaInvalida_devuelve400() throws Exception {
+        // Un ejecutable renombrado a .pdf no debe llegar a la IA.
+        MockMultipartFile archivo = new MockMultipartFile(
+            "archivo", "virus.pdf", "application/pdf", "MZ contenido".getBytes());
+
+        mockMvc.perform(multipart("/documentos/subir").file(archivo))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@aura.com", roles = "ADMIN")
     void subirNoPdf_devuelve400() throws Exception {
         MockMultipartFile archivo = new MockMultipartFile(
             "archivo", "nota.txt", "text/plain", "contenido de texto".getBytes());

@@ -36,6 +36,7 @@ public class DocumentoService {
 
         documento.setAdmin(admin);
         documento.setFechaSubida(LocalDateTime.now());
+        documento.setTamanoBytes((long) contenido.length);
         documento.setActivo(true);
 
         return documentoRepository.save(documento);

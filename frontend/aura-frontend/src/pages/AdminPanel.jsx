@@ -58,8 +58,8 @@ export default function AdminPanel() {
   const subirArchivo = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (!file.name.endsWith('.pdf')) {
-      notify('Solo se aceptan archivos PDF', 'error'); return;
+    if (!/\.(pdf|docx|xlsx)$/i.test(file.name)) {
+      notify('Solo se aceptan PDF, Word (.docx) o Excel (.xlsx)', 'error'); return;
     }
     setUploading(true);
     const formData = new FormData();
@@ -189,7 +189,7 @@ export default function AdminPanel() {
               <input
                 ref={fileRef}
                 type="file"
-                accept=".pdf"
+                accept=".pdf,.docx,.xlsx"
                 onChange={subirArchivo}
                 style={{ display: 'none' }}
               />
@@ -204,7 +204,7 @@ export default function AdminPanel() {
                   <span className="upload-text">
                     Subir un documento
                     <span className="upload-hint">
-                      Solo archivos .pdf · se procesa y se indexa (puede tardar unos segundos)
+                      Solo PDF, Word (.docx) o Excel (.xlsx) · se procesa y se indexa (puede tardar unos segundos)
                     </span>
                   </span>
                   <span className="upload-btn">Elegir archivo</span>
@@ -227,12 +227,13 @@ export default function AdminPanel() {
               <div className="doc-list">
                 {documentos.map((doc) => (
                   <div key={doc.id} className="doc-item">
-                    <div className="doc-icon">PDF</div>
+                    <div className="doc-icon">{doc.nombreArchivo.split('.').pop().toUpperCase()}</div>
                     <div className="doc-info">
                       <span className="doc-name">{doc.nombreArchivo}</span>
                       <span className="doc-meta">
                         Subido el {new Date(doc.fechaSubida).toLocaleDateString('es-AR')}
                         {' · '}por {doc.admin?.nombre || 'Admin'}
+                        {doc.tamanoBytes ? ` · ${(doc.tamanoBytes / 1024 / 1024).toFixed(1)} MB` : ''}
                       </span>
                     </div>
                     <button
