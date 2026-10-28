@@ -292,16 +292,14 @@ describe('Chat - respuesta del bot', () => {
     unmount(root);
   });
 
-  test('muestra de qué documento salió la respuesta', async () => {
+  test('no muestra el cartel de fuente aunque el backend la mande', async () => {
     const { container, root } = await conversacionConRespuesta({
       id: 2, origen: 'BOT', contenido: 'Respuesta',
       fuentes: 'manual.pdf,politicas.pdf',
       timestamp: new Date().toISOString(),
     });
 
-    const chips = [...container.querySelectorAll('.fuente-chip')].map((c) => c.textContent);
-
-    expect(chips).toEqual(['manual.pdf', 'politicas.pdf']);
+    expect(container.querySelector('.msg-fuentes')).toBeNull();
     unmount(root);
   });
 });

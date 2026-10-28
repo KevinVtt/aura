@@ -71,7 +71,7 @@ export default function AdminPanel() {
       notify('Documento subido correctamente');
       cargarDocumentos();
     } catch (err) { notify(motivo(err, 'Error al subir el documento'), 'error'); }
-    finally { setUploading(false); fileRef.current.value = ''; }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
   };
 
   const eliminarDoc = async (doc) => {

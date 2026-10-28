@@ -383,7 +383,6 @@ export default function Chat() {
             ) : (
               mensajes.map((msg, i) => {
                 const esBot = msg.origen !== 'EMPLEADO';
-                const fuentes = esBot && msg.fuentes ? String(msg.fuentes).split(',') : [];
                 return (
                   <div
                     key={msg.id || i}
@@ -412,14 +411,6 @@ export default function Chat() {
                       <div className="msg-bubble">
                         {esBot ? <Respuesta texto={msg.contenido} /> : msg.contenido}
                       </div>
-                      {fuentes.length > 0 && (
-                        <div className="msg-fuentes">
-                          <span className="fuentes-label">Fuente:</span>
-                          {fuentes.map((f) => (
-                            <span className="fuente-chip" key={f}>{f}</span>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
