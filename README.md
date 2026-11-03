@@ -1,104 +1,138 @@
 # AURA
 
-Plataforma de chatbot inteligente con IA para atención al cliente y gestión empresarial.
+Asistente virtual con IA para empresas. Permite consultar la documentación interna (PDF, Word y Excel) desde un chat, y administrar usuarios y documentos según el rol.
 
-## Arquitectura
+## Cómo funciona
 
 ```
-frontend (React 18) ──REST──> backend (Spring Boot 3.5) ──REST──> ia (FastAPI) ──> Groq API / Ollama
+Navegador ──REST──> backend (Spring Boot) ──REST──> IA (FastAPI) ──> Groq (respuestas)
+                                                                 └──> Ollama (búsqueda)
 ```
 
-Tres servicios independientes que se comunican vía REST:
+- El **admin** da de alta usuarios y sube documentos.
+- Los **empleados** solo usan el chat.
+- La IA busca en los documentos subidos (ChromaDB) y responde citando solo esa información. Si no está, lo dice.
 
 | Servicio | Tecnología | Puerto |
 |----------|-----------|--------|
-| **frontend** | React 18 (CRA) | `:3000` (dev) / `:80` (prod) |
-| **backend** | Spring Boot 3.5 + Java 21 + Maven | `:8080` |
-| **ia** | FastAPI + Uvicorn | `:8000` |
-| **ollama** | Ollama (embeddings locales) | `:11434` |
-| **db** | PostgreSQL 17 | `:5432` |
+| frontend | React 18 | 3000 |
+| backend | Spring Boot 3.5 + Java 21 | 8080 |
+| ia | FastAPI (Python) | 8000 |
+| Ollama | Embeddings locales | 11434 |
+| PostgreSQL | Base de datos | 5432 |
 
-## Migración: de repos separados a monorepo
+## Requisitos
 
-### Situación anterior
+- **Java 21** y Maven (o usar el `mvnw` incluido)
+- **Node.js 18+**
+- **Python 3.11+** con `pip install -r aura_chatbot/requirements.txt`
+- **PostgreSQL** con una base llamada `aura_db`
+- **Ollama** con el modelo de embeddings: `ollama pull nomic-embed-text`
+- Una **API key de Groq**: https://console.groq.com/keys
 
-Cada servicio vivía en su propio repositorio de GitHub:
+## Puesta en marcha
 
-- `github.com/KevinVtt/aura_frontend` — frontend React
-- `github.com/KevinVtt/aura_backend` — backend Spring Boot
-- `github.com/KevinVtt/proyecto-aura` — chatbot FastAPI
+### 1. Crear la base de datos
 
-Esto generaba fricción: coordinación manual entre repos, sin docker-compose centralizado, sin una vista unificada del proyecto.
-
-### Cambios realizados
-
-1. **Monorepo único** — Se unificaron los tres servicios en `github.com/KevinVtt/aura`, eliminando los `.git` individuales para trabajar como un solo proyecto.
-2. **Dockerización completa** — Se agregaron `Dockerfile` a cada servicio y un `docker-compose.yml` que orquesta todo el stack (frontend, backend, ia, ollama, postgres).
-3. **Configuración centralizada** — Variables de entorno en `.env` raíz, inyectadas a cada servicio según corresponda.
-4. **Entorno seguro** — `.env` y `application.properties` en `.gitignore` para evitar filtrar secretos.
-5. **Nginx para frontend** — `nginx.conf` para servir el build de React en producción con enrutamiento SPA.
-6. **DataInitializer** — Carga inicial de datos en la base de datos al iniciar el backend.
-7. **Commits organizados** — 4 commits con conventional commits, uno por servicio.
-
-### Mejoras
-
-| Aspecto | Antes | Ahora |
-|---------|-------|-------|
-| **Repositorios** | 3 repos separados | 1 monorepo |
-| **Despliegue** | Manual, servicio por servicio | `docker compose up -d` |
-| **Visibilidad** | Cada repo aislado | Vista completa del proyecto |
-| **Secretos** | `.env` commiteado | En `.gitignore` |
-| **Frontend prod** | Sin configuración | Nginx con SPA routing |
-| **Backend** | Sin Docker | Multi-stage Docker build |
-| **Base de datos** | Sin inicialización | DataInitializer con admin desde `ADMIN_EMAIL`/`ADMIN_PASSWORD` |
-
-## Quick Start
-
-```bash
-git clone https://github.com/KevinVtt/aura.git
-cd deploy
-
-# Configurar variables de entorno
-cp .env.example .env
-# Editar .env con GROQ_API_KEY, DB_PASS, JWT_SECRET y ADMIN_PASSWORD
-
-# Iniciar todo el stack
-docker compose up -d
-
-# Ver logs
-docker compose logs -f
-
-# Detener
-docker compose down
+```sql
+CREATE DATABASE aura_db;
 ```
 
-## Estructura del proyecto
+Las tablas se crean solas al arrancar el backend.
+
+### 2. Configurar las claves
+
+```bash
+cp .env.example .env
+```
+
+Completar en `.env`:
+
+| Variable | Para qué |
+|----------|----------|
+| `GROQ_API_KEY` | Respuestas del chat |
+| `DB_PASS` | Contraseña de PostgreSQL |
+| `JWT_SECRET` | Firma de la sesión. Usar un valor largo y aleatorio |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Primer administrador (solo si la base está vacía) |
+| `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | Envío del correo de alta de usuarios |
+| `ALLOWED_EMAIL_DOMAINS` | Dominios permitidos, separados por coma. Vacío = cualquiera |
+| `APP_URL` | Dirección del frontend para el enlace del correo (default `http://localhost:3000`) |
+
+El `.env` no se versiona. Nunca subas claves al repositorio.
+
+### 3. Levantar
+
+Primero abrí **Ollama** en su propia ventana:
+
+```bash
+ollama serve
+```
+
+Después, doble clic en **`levantar.bat`** (raíz del proyecto). Abre tres ventanas: IA, backend y frontend. Esperá ~30 segundos y entrá a:
+
+http://localhost:3000
+
+### Levantar a mano (alternativa)
+
+```bash
+# IA
+cd aura_chatbot
+py -3 -m uvicorn main:app --host 127.0.0.1 --port 8000
+
+# Backend
+cd backend/project-aura
+mvnw.cmd spring-boot:run
+
+# Frontend
+cd frontend/aura-frontend
+npm install
+npm start
+```
+
+Cada ventana necesita las variables del `.env` cargadas como variables de entorno.
+
+### Con Docker (alternativa)
+
+```bash
+docker compose up -d
+```
+
+## Uso
+
+1. Entrá con el usuario admin definido en `.env`.
+2. En **Administración**, creá usuarios. Si dejás la contraseña vacía, se genera una y se envía por correo.
+3. Subí los PDF, Word o Excel que la IA debe conocer.
+4. El usuario nuevo entra con esa clave, el sistema le pide cambiarla, y ya puede chatear.
+
+No hay registro público: todas las cuentas las crea el admin.
+
+## Estructura
 
 ```
 deploy/
-├── frontend/aura-frontend/   # React 18 (CRA)
-│   ├── Dockerfile
-│   ├── nginx.conf
-│   └── src/
-├── backend/project-aura/     # Spring Boot 3.5 + Java 21
-│   ├── Dockerfile
-│   └── src/main/java/com/project/aura/
-├── aura_chatbot/             # FastAPI + Groq + Ollama
-│   ├── Dockerfile
-│   ├── main.py
-│   ├── chat_service.py
-│   └── llm_service.py
-├── docker-compose.yml        # Orquestación completa
-├── AGENTS.md                 # Contexto del proyecto
-└── .gitignore
+├── frontend/aura-frontend/   # React 18
+├── backend/project-aura/     # Spring Boot 3.5
+├── aura_chatbot/             # FastAPI + Groq + Ollama + ChromaDB
+├── levantar.bat              # Arranca los tres servicios
+├── docker-compose.yml
+├── .env.example
+└── AGENTS.md                 # Contexto técnico para el equipo
 ```
 
-## Stack técnico
+## Tests
 
-- **Frontend:** React 18, react-scripts (CRA), Axios, JWT auth
-- **Backend:** Spring Boot 3.5, JPA/Hibernate, PostgreSQL, JJWT 0.11.5
-- **IA:** FastAPI, Groq API (llama-3.3-70b-versatile), Ollama (nomic-embed-text), ChromaDB
-- **Infra:** Docker Compose, Nginx, PostgreSQL 17
+```bash
+cd aura_chatbot && py -3 -m pytest tests -q
+cd backend/project-aura && mvnw.cmd test
+cd frontend/aura-frontend && npx react-scripts test --watchAll=false
+```
+
+## Problemas frecuentes
+
+- **"No tengo información" en todo:** Ollama no está corriendo o falta el modelo (`ollama pull nomic-embed-text`).
+- **El backend no arranca:** falta `JWT_SECRET` en `.env`, o la base `aura_db` no existe.
+- **No llega el correo de alta:** revisar `SMTP_USER`, `SMTP_PASS` y que el enlace use la IP o dominio correcto en `APP_URL`.
+- **La IA responde de otros documentos:** los fragmentos vienen de la búsqueda; conviene borrar documentos viejos que ya no se usan.
 
 ## Licencia
 
