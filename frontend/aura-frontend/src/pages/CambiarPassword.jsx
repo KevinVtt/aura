@@ -60,6 +60,15 @@ export default function CambiarPassword() {
           <button className="btn-primary" disabled={loading}>
             {loading ? <span className="spinner" /> : 'Guardar contraseña'}
           </button>
+          {!user.mustChangePassword && (
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => navigate(user.rol === 'ADMIN' ? '/admin' : '/chat')}
+            >
+              Volver
+            </button>
+          )}
         </form>
       </div>
     </div>
