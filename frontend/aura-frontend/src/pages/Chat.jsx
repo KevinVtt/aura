@@ -6,16 +6,18 @@ import './Chat.css';
 
 // El modelo contesta con markdown (**negrita**, listas). Se arma con nodos de
 // React y no con HTML: el texto viene del modelo y no se debe inyectar crudo.
-function conNegritas(texto) {
+function conFormato(texto) {
   return String(texto)
-    .split(/(\*\*[^*\n]+\*\*)/g)
-    .map((parte, i) =>
-      parte.startsWith('**') && parte.endsWith('**') && parte.length > 4 ? (
-        <strong key={i}>{parte.slice(2, -2)}</strong>
-      ) : (
-        parte
-      )
-    );
+    .split(/(\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g)
+    .map((parte, i) => {
+      if (parte.startsWith('**') && parte.endsWith('**') && parte.length > 4) {
+        return <strong key={i}>{parte.slice(2, -2)}</strong>;
+      }
+      if (parte.startsWith('*') && parte.endsWith('*') && parte.length > 2) {
+        return <em key={i}>{parte.slice(1, -1)}</em>;
+      }
+      return parte;
+    });
 }
 
 function Respuesta({ texto }) {
@@ -30,13 +32,24 @@ function Respuesta({ texto }) {
   };
 
   String(texto).split('\n').forEach((linea, i) => {
+    // Tablas de markdown: el chat no dibuja tablas, así que cada fila queda
+    // como viñeta y la línea "|---|---|" se descarta.
+    const limpia = linea.trim();
+    if (limpia.startsWith('|') && limpia.endsWith('|')) {
+      const celdas = limpia.split('|').map((c) => c.trim()).filter(Boolean);
+      if (celdas.every((c) => /^:?-{2,}:?$/.test(c))) return;
+      if (celdas.length) {
+        vinetas.push(<li key={i}>{conFormato(celdas.join(' · '))}</li>);
+      }
+      return;
+    }
     const vineta = linea.match(/^\s*[-*•]\s+(.*)$/);
     if (vineta) {
-      vinetas.push(<li key={i}>{conNegritas(vineta[1])}</li>);
+      vinetas.push(<li key={i}>{conFormato(vineta[1])}</li>);
       return;
     }
     cerrarLista();
-    if (linea.trim()) bloques.push(<p key={i}>{conNegritas(linea)}</p>);
+    if (linea.trim()) bloques.push(<p key={i}>{conFormato(linea)}</p>);
   });
   cerrarLista();
 

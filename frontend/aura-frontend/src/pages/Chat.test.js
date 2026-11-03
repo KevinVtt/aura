@@ -278,9 +278,26 @@ describe('Chat - respuesta del bot', () => {
     return { container, root };
   }
 
-  test('las negritas del modelo se muestran sin asteriscos', async () => {
+  test('una tabla del modelo se ve como lista, sin barras', async () => {
     const { container, root } = await conversacionConRespuesta({
-      id: 2, origen: 'BOT', contenido: 'Tenes **15 días** de vacaciones',
+      id: 2,
+      origen: 'BOT',
+      contenido: '| Revolución | Enfoque |\n|---|---|\n| Industrial | **Máquinas** |',
+      timestamp: new Date().toISOString(),
+    });
+
+    const burbujas = container.querySelectorAll('.message.bot .msg-bubble');
+    const ultima = burbujas[burbujas.length - 1];
+
+    expect(ultima.querySelectorAll('li')).toHaveLength(2);
+    expect(ultima.textContent).not.toContain('|');
+    expect(ultima.textContent).not.toContain('---');
+    unmount(root);
+  });
+
+  test('las negritas y cursivas del modelo se muestran sin asteriscos', async () => {
+    const { container, root } = await conversacionConRespuesta({
+      id: 2, origen: 'BOT', contenido: 'Tenes **15 días** de *vacaciones*',
       timestamp: new Date().toISOString(),
     });
 
@@ -288,7 +305,8 @@ describe('Chat - respuesta del bot', () => {
     const ultima = burbujas[burbujas.length - 1];
 
     expect(ultima.querySelector('strong').textContent).toBe('15 días');
-    expect(ultima.textContent).not.toContain('**');
+    expect(ultima.querySelector('em').textContent).toBe('vacaciones');
+    expect(ultima.textContent).not.toContain('*');
     unmount(root);
   });
 
