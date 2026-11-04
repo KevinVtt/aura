@@ -14,5 +14,7 @@ data/
 historial.db
 *.db
 application.properties
+.omo/
+.playwright-mcp/
 .DS_Store
 *.log

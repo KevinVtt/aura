@@ -107,3 +107,27 @@ describe('AdminPanel - cambio de rol', () => {
     unmount(root);
   });
 });
+
+describe('AdminPanel - subida de documentos', () => {
+  test('terminar la subida con el panel desmontado no rompe', async () => {
+    let resolver;
+    api.post.mockImplementation(() => new Promise((r) => { resolver = r; }));
+
+    const { container, root } = renderPanel();
+    await act(async () => {});
+
+    const input = container.querySelector('input[type="file"]');
+    const archivo = new File(['x'], 'ley.pdf', { type: 'application/pdf' });
+    Object.defineProperty(input, 'files', { value: [archivo] });
+
+    act(() => {
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    // El usuario cambia de pestaña mientras sube: el selector desaparece.
+    unmount(root);
+    await act(async () => {
+      resolver({ data: {} });
+    });
+  });
+});
