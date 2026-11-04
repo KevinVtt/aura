@@ -56,6 +56,8 @@ Completar en `.env`:
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Primer administrador (solo si la base está vacía) |
 | `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | Envío del correo de alta de usuarios |
 | `ALLOWED_EMAIL_DOMAINS` | Dominios permitidos, separados por coma. Vacío = cualquiera |
+| `ALLOWED_ORIGINS` | Direcciones desde las que el navegador puede llamar al backend y a la IA |
+| `IA_TOKEN` | Clave compartida entre backend e IA. Vacío = sin control (solo local) |
 | `APP_URL` | Dirección del frontend para el enlace del correo (default `http://localhost:3000`) |
 
 El `.env` no se versiona. Nunca subas claves al repositorio.

@@ -288,15 +288,12 @@ def test_eliminar_documento_elimina_ids_y_archivo(aura_modules, monkeypatch):
     with open("./pdfs/a.pdf", "w") as f:
         f.write("x")
     coleccion = MagicMock()
-    coleccion.get.return_value = {
-        "ids": ["a_chunk_0", "b_chunk_0"],
-        "metadatas": [{"fuente": "a.pdf"}, {"fuente": "b.pdf"}],
-    }
+    coleccion.get.return_value = {"ids": ["a_chunk_0"]}
     monkeypatch.setattr(dp, "coleccion", coleccion)
 
     dp.eliminar_documento("a.pdf")
 
-    coleccion.delete.assert_called_once_with(ids=["a_chunk_0"])
+    coleccion.delete.assert_called_once_with(where={"fuente": "a.pdf"})
     assert not os.path.exists("./pdfs/a.pdf")
 
 
@@ -308,25 +305,19 @@ def test_eliminar_documento_sanitiza_path_traversal(aura_modules, monkeypatch):
     with open("./pdfs/a.pdf", "w") as f:
         f.write("x")
     coleccion = MagicMock()
-    coleccion.get.return_value = {
-        "ids": ["a_chunk_0"],
-        "metadatas": [{"fuente": "a.pdf"}],
-    }
+    coleccion.get.return_value = {"ids": ["a_chunk_0"]}
     monkeypatch.setattr(dp, "coleccion", coleccion)
 
     dp.eliminar_documento("../a.pdf")
 
-    coleccion.delete.assert_called_once_with(ids=["a_chunk_0"])
+    coleccion.delete.assert_called_once_with(where={"fuente": "a.pdf"})
     assert not os.path.exists("./pdfs/a.pdf")
 
 
 def test_eliminar_documento_no_encontrado_lanza_valueerror(aura_modules, monkeypatch):
     dp = aura_modules.document_processor
     coleccion = MagicMock()
-    coleccion.get.return_value = {
-        "ids": ["b_chunk_0"],
-        "metadatas": [{"fuente": "b.pdf"}],
-    }
+    coleccion.get.return_value = {"ids": []}
     monkeypatch.setattr(dp, "coleccion", coleccion)
 
     with pytest.raises(ValueError, match="No se encontró"):

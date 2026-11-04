@@ -125,7 +125,11 @@ def procesar_documento(ruta: str, nombre_doc: str):
 
     if len(texto) > MAX_CARACTERES:
         print(f"   [aviso] texto recortado a {MAX_CARACTERES} caracteres")
+        aviso = (f"El documento es muy largo: se indexaron solo los primeros "
+                 f"{MAX_CARACTERES} caracteres.")
         texto = texto[:MAX_CARACTERES]
+    else:
+        aviso = None
 
     chunks = _dividir_en_chunks(texto)
     print(f"   -> {len(chunks)} chunks generados")
@@ -149,6 +153,7 @@ def procesar_documento(ruta: str, nombre_doc: str):
         print(f"   -> {inicio + len(lote)}/{len(chunks)} chunks guardados")
 
     print(f"   OK: guardado en ChromaDB")
+    return aviso
 
 
 def buscar_chunks_relevantes(
@@ -226,17 +231,14 @@ def listar_documentos() -> list[str]:
 
 def eliminar_documento(nombre_doc: str):
     nombre_doc = os.path.basename(nombre_doc)
-    todos = coleccion.get(include=["metadatas"])
-    ids_a_eliminar = [
-        id_
-        for id_, meta in zip(todos["ids"], todos["metadatas"])
-        if meta["fuente"] == nombre_doc
-    ]
-
-    if not ids_a_eliminar:
+    # Se pregunta solo por ese documento: traer toda la coleccion no escala.
+    existentes = coleccion.get(
+        where={"fuente": nombre_doc}, include=["metadatas"], limit=1
+    )
+    if not existentes["ids"]:
         raise ValueError(f"No se encontró '{nombre_doc}' en la base de datos.")
 
-    coleccion.delete(ids=ids_a_eliminar)
+    coleccion.delete(where={"fuente": nombre_doc})
 
     ruta = f"./pdfs/{nombre_doc}"
     if os.path.exists(ruta):

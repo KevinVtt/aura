@@ -132,11 +132,9 @@ def responder(sesion_id: str, pregunta: str) -> dict:
         [] if RECHAZO in respuesta
         else sorted(set(c["fuente"] for c in chunks))
     )
-    historial_actualizado = _obtener_historial_db(sesion_id)
     return {
         "respuesta": respuesta,
         "fuentes":   fuentes,
-        "historial": historial_actualizado
     }
 
 
