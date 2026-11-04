@@ -64,12 +64,14 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void runtimeException_devuelve400ConError() {
+    void runtimeException_noSeDisfrazaDePedidoInvalido() {
+        // Un fallo interno tiene que salir como 500 y sin detalles: antes se
+        // respondia 400 con el mensaje crudo de la excepcion.
         ResponseEntity<Map<String, String>> response =
-            handler.handleRuntimeException(new RuntimeException("El email ya está registrado"));
+            handler.handleException(new RuntimeException("detalle interno"));
 
-        assertEquals(400, response.getStatusCode().value());
-        assertEquals("El email ya está registrado", response.getBody().get("error"));
+        assertEquals(500, response.getStatusCode().value());
+        assertEquals("Error interno del servidor", response.getBody().get("error"));
     }
 
     @Test

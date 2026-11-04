@@ -36,8 +36,9 @@ public class MailService {
         try {
             mailSender.send(mensaje);
         } catch (MailException e) {
+            // El alta ya quedo guardada: el admin puede reintentar sin crearla de nuevo.
             throw new ApiException(HttpStatus.BAD_GATEWAY,
-                "No se pudo enviar el correo. No se guardaron los cambios.");
+                "No se pudo enviar el correo. Usá «Reenviar alta» para intentar de nuevo.");
         }
     }
 }

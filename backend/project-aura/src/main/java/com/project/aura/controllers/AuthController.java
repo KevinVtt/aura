@@ -52,7 +52,9 @@ public class AuthController {
         Instant ahora = Instant.now();
         intentos.values().removeIf(a -> ahora.isAfter(a.expira()));
 
-        String ip = httpRequest.getRemoteAddr();
+        // La clave suma el email: detras de un proxy todos comparten IP y cinco
+        // fallos de una persona dejaban a la oficina entera sin poder entrar.
+        String ip = httpRequest.getRemoteAddr() + "|" + email;
         LoginAttempt actual = intentos.get(ip);
 
         if (actual != null && actual.count() >= MAX_INTENTOS) {

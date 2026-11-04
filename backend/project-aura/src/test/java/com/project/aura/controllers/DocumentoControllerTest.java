@@ -19,11 +19,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.project.aura.config.TestSecurityConfig;
+import com.project.aura.exception.ApiException;
 import com.project.aura.jwt.JwtUtil;
 import com.project.aura.models.Contacto;
 import com.project.aura.models.Documento;
@@ -179,12 +181,12 @@ class DocumentoControllerTest {
 
     @Test
     @WithMockUser(username = "admin@aura.com", roles = "ADMIN")
-    void eliminar_idInexistente_devuelve400() throws Exception {
-        org.mockito.Mockito.doThrow(new RuntimeException("Documento no encontrado"))
+    void eliminar_idInexistente_devuelve404() throws Exception {
+        org.mockito.Mockito.doThrow(new ApiException(HttpStatus.NOT_FOUND, "Documento no encontrado"))
             .when(documentoService).eliminar(999L);
 
         mockMvc.perform(delete("/documentos/999"))
-            .andExpect(status().isBadRequest())
+            .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.error").value("Documento no encontrado"));
     }
 

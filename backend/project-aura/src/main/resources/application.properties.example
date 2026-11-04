@@ -21,6 +21,11 @@ aura.allowed-email-domains=${ALLOWED_EMAIL_DOMAINS:}
 
 # FastAPI
 fastapi.url=http://localhost:8000
+# Token compartido con la IA (vacio = sin control, solo desarrollo local)
+ia.token=${IA_TOKEN:}
+
+# CORS del backend (misma variable que usa la IA)
+aura.allowed-origins=${ALLOWED_ORIGINS:http://localhost:3000}
 
 # Mail (alta de usuarios)
 spring.mail.host=${SMTP_HOST:smtp.gmail.com}

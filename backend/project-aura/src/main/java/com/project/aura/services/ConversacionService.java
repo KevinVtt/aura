@@ -13,7 +13,9 @@ import com.project.aura.repositories.ConversacionRepository;
 import com.project.aura.repositories.MensajeRepository;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -86,12 +88,14 @@ public class ConversacionService {
 
         // El sidebar mostraba el UUID de la sesion, que no le dice nada a nadie:
         // el titulo es la primera pregunta de la conversacion.
-        for (Conversacion conversacion : conversaciones) {
-            mensajeRepository
-                .findFirstByConversacionIdAndOrigenOrderByTimestampAsc(
-                    conversacion.getId(), Origen.EMPLEADO)
-                .ifPresent(primero ->
-                    conversacion.setTitulo(recortar(primero.getContenido())));
+        if (!conversaciones.isEmpty()) {
+            Map<Long, String> titulos = new HashMap<>();
+            mensajeRepository.buscarTitulos(
+                    conversaciones.stream().map(Conversacion::getId).toList(),
+                    Origen.EMPLEADO)
+                .forEach(m -> titulos.putIfAbsent(
+                    m.getConversacion().getId(), recortar(m.getContenido())));
+            conversaciones.forEach(c -> c.setTitulo(titulos.get(c.getId())));
         }
         return conversaciones;
     }

@@ -21,11 +21,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.project.aura.config.TestSecurityConfig;
+import com.project.aura.exception.ApiException;
 import com.project.aura.jwt.JwtUtil;
 import com.project.aura.models.Contacto;
 import com.project.aura.models.Conversacion;
@@ -139,15 +141,15 @@ class ChatControllerTest {
 
     @Test
     @WithMockUser(username = "admin@aura.com", roles = "ADMIN")
-    void enviarMensaje_conversacionInexistente_devuelve400() throws Exception {
+    void enviarMensaje_conversacionInexistente_devuelve404() throws Exception {
         when(usuarioRepository.findByContactoEmail("admin@aura.com")).thenReturn(Optional.of(usuario()));
         when(conversacionService.enviarMensaje(eq("no-existe"), eq("hola"), any(Usuario.class)))
-            .thenThrow(new RuntimeException("Conversación no encontrada"));
+            .thenThrow(new ApiException(HttpStatus.NOT_FOUND, "Conversación no encontrada"));
 
         mockMvc.perform(post("/chat/no-existe/mensaje")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"pregunta\":\"hola\"}"))
-            .andExpect(status().isBadRequest())
+            .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.error").value("Conversación no encontrada"));
     }
 

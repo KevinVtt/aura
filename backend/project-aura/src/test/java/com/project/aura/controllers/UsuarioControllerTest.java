@@ -101,14 +101,14 @@ class UsuarioControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    void crear_emailDuplicado_devuelve400() throws Exception {
+    void crear_emailDuplicado_devuelve409() throws Exception {
         when(usuarioService.crear(any(Usuario.class)))
-            .thenThrow(new RuntimeException("El email ya está registrado"));
+            .thenThrow(new ApiException(HttpStatus.CONFLICT, "El email ya está registrado"));
 
         mockMvc.perform(post("/usuarios")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(bodyValido()))
-            .andExpect(status().isBadRequest())
+            .andExpect(status().isConflict())
             .andExpect(jsonPath("$.error").value("El email ya está registrado"));
     }
 
@@ -168,12 +168,12 @@ class UsuarioControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    void desactivar_idInexistente_devuelve400() throws Exception {
+    void desactivar_idInexistente_devuelve404() throws Exception {
         when(usuarioService.desactivar(999L))
-            .thenThrow(new RuntimeException("Usuario no encontrado"));
+            .thenThrow(new ApiException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
 
         mockMvc.perform(delete("/usuarios/999"))
-            .andExpect(status().isBadRequest())
+            .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.error").value("Usuario no encontrado"));
     }
 

@@ -12,6 +12,8 @@ import com.project.aura.repositories.UsuarioRepository;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -72,7 +74,7 @@ public class UsuarioService {
                 "Solo se permiten correos de los dominios: " + String.join(", ", dominiosPermitidos));
         }
         if (usuarioRepository.findByContactoEmail(email).isPresent()) {
-            throw new RuntimeException("El email ya está registrado");
+            throw new ApiException(HttpStatus.CONFLICT, "El email ya está registrado");
         }
         String clave = usuario.getPassword() == null || usuario.getPassword().isBlank()
             ? generarPassword() : usuario.getPassword();
@@ -80,7 +82,7 @@ public class UsuarioService {
         usuario.setActivo(true);
         usuario.setMustChangePassword(true);
         Usuario guardado = usuarioRepository.save(usuario);
-        mailService.enviarAlta(email, usuario.getNombre(), clave);
+        despuesDelCommit(() -> mailService.enviarAlta(email, usuario.getNombre(), clave));
         return guardado;
     }
 
@@ -91,8 +93,24 @@ public class UsuarioService {
         usuario.setPassword(passwordEncoder.encode(clave));
         usuario.setMustChangePassword(true);
         Usuario guardado = usuarioRepository.save(usuario);
-        mailService.enviarAlta(usuario.getContacto().getEmail(), usuario.getNombre(), clave);
+        despuesDelCommit(() -> mailService.enviarAlta(
+            usuario.getContacto().getEmail(), usuario.getNombre(), clave));
         return guardado;
+    }
+
+    /** Envia el correo recien cuando el cambio quedo guardado: si el commit
+     *  falla, nadie recibe una clave que no existe. */
+    private void despuesDelCommit(Runnable envio) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            envio.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                envio.run();
+            }
+        });
     }
 
     @Transactional
