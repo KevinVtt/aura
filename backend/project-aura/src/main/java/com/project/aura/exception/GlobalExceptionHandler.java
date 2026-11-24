@@ -6,11 +6,14 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.*;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final String ERROR_GENERICO = "Error interno del servidor";
 
     // Errores de validación (@Valid)
@@ -64,6 +67,8 @@ public class GlobalExceptionHandler {
     // Error inesperado: mensaje genérico, sin filtrar detalles internos
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleException(Exception ex) {
+        // Sin esto un 500 en produccion no deja ni rastro para diagnosticar.
+        log.error("Error no controlado", ex);
         Map<String, String> error = new HashMap<>();
         error.put("error", ERROR_GENERICO);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);

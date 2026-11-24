@@ -136,6 +136,17 @@ class UsuarioControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
+    void crear_sinContacto_devuelve400() throws Exception {
+        // Sin el @NotNull devolvia 500 por NullPointerException en el controller.
+        mockMvc.perform(post("/usuarios")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nombre\":\"Juan\",\"password\":\"password123\",\"rol\":\"EMPLEADO\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.contacto").exists());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
     void crear_emailMalformado_devuelve400() throws Exception {
         mockMvc.perform(post("/usuarios")
                 .contentType(MediaType.APPLICATION_JSON)

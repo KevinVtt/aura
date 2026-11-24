@@ -61,6 +61,7 @@ public class Usuario {
     private Boolean activo = true;
     
     @Valid
+    @NotNull(message = "El contacto es obligatorio")
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "contacto_id")
     private Contacto contacto;
