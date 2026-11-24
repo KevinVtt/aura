@@ -97,4 +97,13 @@ describe('AuthContext', () => {
     expect(container.querySelector('[data-testid="token"]').textContent).toBe('null');
     unmount(root);
   });
+
+  test('login no guarda mustChangePassword', () => {
+    const { container, root } = renderProvider();
+    act(() => {
+      container.querySelector('#btn-login').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(localStorage.getItem('mustChangePassword')).toBeNull();
+    unmount(root);
+  });
 });
