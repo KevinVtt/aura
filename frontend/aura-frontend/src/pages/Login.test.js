@@ -3,17 +3,14 @@ import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import Login from './Login';
 
-jest.mock('../api/axios', () => ({
-  post: jest.fn(),
-}));
-jest.mock('../context/AuthContext', () => ({
-  useAuth: jest.fn(),
-}));
+jest.mock('../api/axios', () => ({ post: jest.fn() }));
+jest.mock('../context/AuthContext', () => ({ useAuth: jest.fn() }));
 
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 
 const mockLogin = jest.fn();
+let googleCallback;
 
 function renderLogin() {
   const container = document.createElement('div');
@@ -33,136 +30,107 @@ function renderLogin() {
   return { container, root };
 }
 
-function setInput(input, value) {
-  const setter = Object.getOwnPropertyDescriptor(
-    window.HTMLInputElement.prototype,
-    'value'
-  ).set;
-  act(() => {
-    setter.call(input, value);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-}
-
-function submitForm(form) {
-  act(() => {
-    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-  });
-}
-
-function unmount(root) {
-  act(() => root.unmount());
-  document.body.innerHTML = '';
+async function credencial(credential) {
+  await act(async () => { await googleCallback({ credential }); });
 }
 
 beforeEach(() => {
+  process.env.REACT_APP_GOOGLE_CLIENT_ID = 'client-id-de-prueba';
   useAuth.mockReturnValue({ login: mockLogin });
   mockLogin.mockClear();
   api.post.mockReset();
+  window.google = {
+    accounts: {
+      id: {
+        initialize: jest.fn(({ callback }) => { googleCallback = callback; }),
+        renderButton: jest.fn(),
+      },
+    },
+  };
 });
 
-describe('Login', () => {
-  test('renderiza el formulario con email, password y botón', () => {
-    const { container, root } = renderLogin();
-    expect(container.querySelector('input[name="email"]')).not.toBeNull();
-    expect(container.querySelector('input[name="password"]')).not.toBeNull();
-    expect(container.querySelector('button.btn-primary')).not.toBeNull();
-    unmount(root);
-  });
+afterEach(() => {
+  delete window.google;
+  delete process.env.REACT_APP_GOOGLE_CLIENT_ID;
+  document.body.innerHTML = '';
+});
 
-  test('submit con credenciales llama a api.post y navega a /chat para EMPLEADO', async () => {
-    api.post.mockResolvedValue({ data: { token: 'tok', nombre: 'Ana', rol: 'EMPLEADO' } });
-    const { container, root } = renderLogin();
-    setInput(container.querySelector('input[name="email"]'), 'ana@test.com');
-    setInput(container.querySelector('input[name="password"]'), 'secreto');
-    await act(async () => {
-      container
-        .querySelector('form')
-        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    });
-    expect(api.post).toHaveBeenCalledWith('/auth/login', {
-      email: 'ana@test.com',
-      password: 'secreto',
-    });
-    expect(mockLogin).toHaveBeenCalledWith({ token: 'tok', nombre: 'Ana', rol: 'EMPLEADO' });
-    expect(container.querySelector('[data-testid="chat-page"]')).not.toBeNull();
-    unmount(root);
-  });
+test('sin REACT_APP_GOOGLE_CLIENT_ID muestra un aviso de configuración', () => {
+  delete process.env.REACT_APP_GOOGLE_CLIENT_ID;
+  const { container, root } = renderLogin();
+  expect(container.textContent).toContain('no está configurado');
+  act(() => root.unmount());
+});
 
-  test('submit con rol ADMIN navega a /admin', async () => {
-    api.post.mockResolvedValue({ data: { token: 'tok', nombre: 'Ana', rol: 'ADMIN' } });
-    const { container, root } = renderLogin();
-    setInput(container.querySelector('input[name="email"]'), 'admin@test.com');
-    setInput(container.querySelector('input[name="password"]'), 'secreto');
-    await act(async () => {
-      container
-        .querySelector('form')
-        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    });
-    expect(container.querySelector('[data-testid="admin-page"]')).not.toBeNull();
-    unmount(root);
-  });
+test('si el script de Google no carga, muestra un aviso en vez de quedar vacío', () => {
+  delete window.google;
+  const { container, root } = renderLogin();
+  expect(container.querySelector('.auth-error')).not.toBeNull();
+  act(() => root.unmount());
+});
 
-  test('error del servidor muestra el mensaje de error', async () => {
-    api.post.mockRejectedValue({ response: { data: { error: 'Credenciales inválidas' } } });
-    const { container, root } = renderLogin();
-    setInput(container.querySelector('input[name="email"]'), 'ana@test.com');
-    setInput(container.querySelector('input[name="password"]'), 'mal');
-    await act(async () => {
-      container
-        .querySelector('form')
-        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    });
-    expect(container.querySelector('.auth-error').textContent).toBe('Credenciales inválidas');
-    unmount(root);
-  });
+test('credencial APROBADA inicia sesión y navega según el rol', async () => {
+  const data = { estado: 'APROBADO', token: 'tok', nombre: 'Ana', rol: 'EMPLEADO' };
+  api.post.mockResolvedValue({ data });
+  const { container, root } = renderLogin();
+  await credencial('id-token');
+  expect(api.post).toHaveBeenCalledWith('/auth/google', { idToken: 'id-token' });
+  expect(mockLogin).toHaveBeenCalledWith(data);
+  expect(container.querySelector('[data-testid="chat-page"]')).not.toBeNull();
+  act(() => root.unmount());
+});
 
-  test('error sin response.data muestra mensaje por defecto', async () => {
-    api.post.mockRejectedValue({});
-    const { container, root } = renderLogin();
-    setInput(container.querySelector('input[name="email"]'), 'ana@test.com');
-    setInput(container.querySelector('input[name="password"]'), 'mal');
-    await act(async () => {
-      container
-        .querySelector('form')
-        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    });
-    expect(container.querySelector('.auth-error').textContent).toBe('Credenciales incorrectas');
-    unmount(root);
-  });
+test('estado PENDIENTE muestra el mensaje y no inicia sesión', async () => {
+  api.post.mockResolvedValue({ data: { estado: 'PENDIENTE', email: 'ana@gmail.com' } });
+  const { container, root } = renderLogin();
+  await credencial('id-token');
+  expect(container.textContent).toContain('pendiente de aprobación');
+  expect(mockLogin).not.toHaveBeenCalled();
+  act(() => root.unmount());
+});
 
-  test('429 por demasiados intentos no dice "credenciales incorrectas"', async () => {
-    api.post.mockRejectedValue({ response: { status: 429 } });
-    const { container, root } = renderLogin();
-    setInput(container.querySelector('input[name="email"]'), 'ana@test.com');
-    setInput(container.querySelector('input[name="password"]'), 'mal');
-    await act(async () => {
-      container
-        .querySelector('form')
-        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    });
-    expect(container.querySelector('.auth-error').textContent).toContain('Demasiados intentos');
-    unmount(root);
+test('estado NO_REGISTRADO pide el teléfono y manda la solicitud', async () => {
+  api.post.mockResolvedValueOnce({ data: { estado: 'NO_REGISTRADO', email: 'ana@gmail.com', nombre: 'Ana' } });
+  const { container, root } = renderLogin();
+  await credencial('id-token');
+  const tel = container.querySelector('input[name="telefono"]');
+  expect(tel).not.toBeNull();
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+  act(() => { setter.call(tel, '1122334455'); tel.dispatchEvent(new Event('input', { bubbles: true })); });
+  api.post.mockResolvedValueOnce({ data: {} });
+  await act(async () => {
+    container.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   });
+  expect(api.post).toHaveBeenLastCalledWith('/auth/solicitud', { idToken: 'id-token', telefono: '1122334455' });
+  expect(container.textContent).toContain('pendiente de aprobación');
+  act(() => root.unmount());
+});
 
-  test('loading deshabilita el botón durante el submit', async () => {
-    let resolvePost;
-    api.post.mockReturnValue(
-      new Promise((res) => {
-        resolvePost = res;
-      })
-    );
-    const { container, root } = renderLogin();
-    setInput(container.querySelector('input[name="email"]'), 'ana@test.com');
-    setInput(container.querySelector('input[name="password"]'), 'secreto');
-    submitForm(container.querySelector('form'));
-    const button = container.querySelector('button.btn-primary');
-    expect(button.disabled).toBe(true);
-    expect(button.querySelector('.spinner')).not.toBeNull();
-    await act(async () => {
-      resolvePost({ data: { token: 'tok', nombre: 'Ana', rol: 'EMPLEADO' } });
-    });
-    expect(container.querySelector('[data-testid="chat-page"]')).not.toBeNull();
-    unmount(root);
+test('estado RECHAZADO muestra el mensaje de rechazo', async () => {
+  api.post.mockResolvedValue({ data: { estado: 'RECHAZADO' } });
+  const { container, root } = renderLogin();
+  await credencial('id-token');
+  expect(container.textContent).toContain('no fue aprobado');
+  act(() => root.unmount());
+});
+
+test('el acceso de administrador manda a /auth/login', async () => {
+  api.post.mockResolvedValue({ data: { token: 'tok', nombre: 'Admin', rol: 'ADMIN' } });
+  const { container, root } = renderLogin();
+  act(() => {
+    container.querySelector('.link-admin').dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+  const email = container.querySelector('input[name="email"]');
+  const pass = container.querySelector('input[name="password"]');
+  act(() => {
+    setter.call(email, 'admin@aura.com'); email.dispatchEvent(new Event('input', { bubbles: true }));
+    setter.call(pass, 'secreto'); pass.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    container.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  });
+  expect(api.post).toHaveBeenCalledWith('/auth/login', { email: 'admin@aura.com', password: 'secreto' });
+  expect(container.querySelector('[data-testid="admin-page"]')).not.toBeNull();
+  act(() => root.unmount());
 });
