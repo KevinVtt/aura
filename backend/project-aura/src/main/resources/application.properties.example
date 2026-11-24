@@ -20,7 +20,7 @@ aura.admin.password=${ADMIN_PASSWORD:}
 aura.allowed-email-domains=${ALLOWED_EMAIL_DOMAINS:}
 
 # FastAPI
-fastapi.url=http://localhost:8000
+fastapi.url=${IA_SERVICE_URL:http://localhost:8000}
 # Token compartido con la IA (vacio = sin control, solo desarrollo local)
 ia.token=${IA_TOKEN:}
 
