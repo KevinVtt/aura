@@ -56,16 +56,71 @@ def test_extraer_texto_concatena_paginas(aura_modules, monkeypatch):
     assert dp._extraer_texto("cualquier.pdf") == "Hola mundo"
 
 
+def test_extraer_texto_docx_incluye_parrafos_y_tablas(tmp_path, aura_modules):
+    from docx import Document as DocxDocument
+
+    dp = aura_modules.document_processor
+    ruta = tmp_path / "politicas.docx"
+    documento = DocxDocument()
+    documento.add_paragraph("Licencia anual de 21 días.")
+    tabla = documento.add_table(rows=1, cols=2)
+    tabla.rows[0].cells[0].text = "Área"
+    tabla.rows[0].cells[1].text = "Tope"
+    documento.save(ruta)
+
+    texto = dp._extraer_texto(str(ruta))
+
+    assert "Licencia anual de 21 días." in texto
+    assert "Área | Tope" in texto
+    assert texto.index("Licencia") < texto.index("Área")
+
+
+def test_extraer_texto_xlsx_una_fila_por_linea(tmp_path, aura_modules):
+    from openpyxl import Workbook
+
+    dp = aura_modules.document_processor
+    ruta = tmp_path / "sueldos.xlsx"
+    libro = Workbook()
+    hoja = libro.active
+    hoja.title = "Sueldos"
+    hoja.append(["Puesto", "Sueldo"])
+    hoja.append([None, None])          # fila vacía: no debe aparecer
+    hoja.append(["Analista", 1500])
+    libro.save(ruta)
+
+    texto = dp._extraer_texto(str(ruta))
+
+    assert "Hoja: Sueldos" in texto
+    assert "Puesto | Sueldo" in texto
+    assert "Analista | 1500" in texto
+    assert "\n\n" not in texto
+
+
+def test_extraer_texto_formato_viejo_pide_convertir(aura_modules):
+    dp = aura_modules.document_processor
+    with pytest.raises(ValueError, match="Guardalos como .docx o .xlsx"):
+        dp._extraer_texto("contrato.doc")
+
+
+def test_extraer_texto_archivo_danado_lanza_valueerror(tmp_path, aura_modules):
+    dp = aura_modules.document_processor
+    ruta = tmp_path / "roto.docx"
+    ruta.write_bytes(b"esto no es un docx")
+
+    with pytest.raises(ValueError, match="dañado"):
+        dp.procesar_documento(str(ruta), "roto.docx")
+
+
 # ── procesar_pdf ─────────────────────────────────────────────────────────────
 
 def test_procesar_pdf_guarda_chunks_en_chroma(aura_modules, monkeypatch):
     dp = aura_modules.document_processor
     monkeypatch.setattr(dp, "_extraer_texto", lambda ruta: "hola mundo")
-    monkeypatch.setattr(dp, "generar_embedding", lambda texto: [0.1, 0.2])
+    monkeypatch.setattr(dp, "generar_embeddings", lambda textos: [[0.1, 0.2] for _ in textos])
     coleccion = MagicMock()
     monkeypatch.setattr(dp, "coleccion", coleccion)
 
-    dp.procesar_pdf("./pdfs/doc.pdf", "doc.pdf")
+    dp.procesar_documento("./pdfs/doc.pdf", "doc.pdf")
 
     # una version anterior del mismo archivo se borra antes de guardar la nueva
     coleccion.delete.assert_called_once_with(where={"fuente": "doc.pdf"})
@@ -77,11 +132,66 @@ def test_procesar_pdf_guarda_chunks_en_chroma(aura_modules, monkeypatch):
     )
 
 
-def test_procesar_pdf_texto_vacio_lanza_valueerror(aura_modules, monkeypatch):
+def test_procesar_pdf_pide_embeddings_en_lotes(aura_modules, monkeypatch):
+    """Un PDF largo no puede hacer un pedido a Ollama por chunk: tarda minutos."""
+    dp = aura_modules.document_processor
+    monkeypatch.setattr(dp, "LOTE", 2)
+    monkeypatch.setattr(
+        dp, "_extraer_texto",
+        lambda ruta: " ".join(f"palabra{i}" for i in range(dp.CHUNK_SIZE * 4)),
+    )
+    pedidos = []
+
+    def fake_embeddings(textos):
+        pedidos.append(len(textos))
+        return [[0.5] for _ in textos]
+
+    monkeypatch.setattr(dp, "generar_embeddings", fake_embeddings)
+    coleccion = MagicMock()
+    monkeypatch.setattr(dp, "coleccion", coleccion)
+
+    dp.procesar_documento("x.pdf", "x.pdf")
+
+    assert pedidos == [2, 2, 1]
+    assert coleccion.add.call_count == 3
+
+
+def test_procesar_documento_si_falla_un_lote_no_deja_chunks_parciales(
+    aura_modules, monkeypatch
+):
+    """Ollama caido en el segundo lote: no debe quedar medio documento indexado."""
+    dp = aura_modules.document_processor
+    monkeypatch.setattr(dp, "LOTE", 2)
+    monkeypatch.setattr(
+        dp, "_extraer_texto",
+        lambda ruta: " ".join(f"palabra{i}" for i in range(dp.CHUNK_SIZE * 4)),
+    )
+    llamadas = {"n": 0}
+
+    def embeddings_que_fallan(textos):
+        llamadas["n"] += 1
+        if llamadas["n"] == 2:
+            raise RuntimeError("Ollama no responde")
+        return [[0.5] for _ in textos]
+
+    monkeypatch.setattr(dp, "generar_embeddings", embeddings_que_fallan)
+    coleccion = MagicMock()
+    monkeypatch.setattr(dp, "coleccion", coleccion)
+
+    with pytest.raises(RuntimeError):
+        dp.procesar_documento("x.pdf", "x.pdf")
+
+    # dos borrados: el de la version vieja y el de los chunks parciales
+    assert coleccion.delete.call_count == 2
+    assert coleccion.delete.call_args.kwargs == {"where": {"fuente": "x.pdf"}}
+    assert coleccion.add.call_count == 1
+
+
+def test_procesar_documento_texto_vacio_lanza_valueerror(aura_modules, monkeypatch):
     dp = aura_modules.document_processor
     monkeypatch.setattr(dp, "_extraer_texto", lambda ruta: "   ")
-    with pytest.raises(ValueError, match="No se pudo extraer texto"):
-        dp.procesar_pdf("x.pdf", "x.pdf")
+    with pytest.raises(ValueError, match="no tiene texto"):
+        dp.procesar_documento("x.pdf", "x.pdf")
 
 
 # ── buscar_chunks_relevantes ─────────────────────────────────────────────────
@@ -105,7 +215,7 @@ def test_buscar_chunks_relevantes(aura_modules, monkeypatch):
     ]
     coleccion.query.assert_called_once_with(
         query_embeddings=[[0.5]],
-        n_results=2,
+        n_results=10,
         include=["documents", "metadatas", "distances"],
     )
 
@@ -137,6 +247,57 @@ def test_buscar_chunks_relevantes_no_descarta_por_distancia(aura_modules, monkey
     ]
 
 
+def test_buscar_chunks_relevantes_rescata_el_documento_que_quedo_afuera(
+    aura_modules, monkeypatch
+):
+    """Con varios documentos, el fragmento que responde puede quedar 5to.
+
+    Medido con 4 documentos reales: la pregunta del .docx dio distancia 373 y
+    quedo detras de 4 fragmentos de otros dos archivos. Con solo los 3 primeros
+    el bot contestaba "No tengo informacion" teniendo la respuesta adentro."""
+    dp = aura_modules.document_processor
+    monkeypatch.setattr(dp, "generar_embedding", lambda texto: [0.5])
+    coleccion = MagicMock()
+    coleccion.query.return_value = {
+        "documents": [["c1", "c2", "c3", "c4", "responde"]],
+        "metadatas": [[
+            {"fuente": "calendario.pdf"},
+            {"fuente": "calendario.pdf"},
+            {"fuente": "guia.pdf"},
+            {"fuente": "guia.pdf"},
+            {"fuente": "politicas.docx"},
+        ]],
+        "distances": [[290.0, 308.4, 308.6, 332.1, 373.1]],
+    }
+    monkeypatch.setattr(dp, "coleccion", coleccion)
+
+    resultado = dp.buscar_chunks_relevantes("pregunta", top_k=3, max_otros=2)
+
+    assert [c["texto"] for c in resultado] == ["c1", "c2", "c3", "responde"]
+
+
+def test_buscar_chunks_relevantes_limita_los_documentos_extra(
+    aura_modules, monkeypatch
+):
+    """El rescate no crece sin control: entran como mucho `max_otros` documentos."""
+    dp = aura_modules.document_processor
+    monkeypatch.setattr(dp, "generar_embedding", lambda texto: [0.5])
+    coleccion = MagicMock()
+    coleccion.query.return_value = {
+        "documents": [["c1", "c2", "c3", "d4", "d5", "d6"]],
+        "metadatas": [[
+            {"fuente": "a.pdf"}, {"fuente": "a.pdf"}, {"fuente": "a.pdf"},
+            {"fuente": "b.pdf"}, {"fuente": "c.pdf"}, {"fuente": "d.pdf"},
+        ]],
+        "distances": [[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]],
+    }
+    monkeypatch.setattr(dp, "coleccion", coleccion)
+
+    resultado = dp.buscar_chunks_relevantes("pregunta", top_k=3, max_otros=2)
+
+    assert [c["texto"] for c in resultado] == ["c1", "c2", "c3", "d4", "d5"]
+
+
 # ── listar_documentos ────────────────────────────────────────────────────────
 
 def test_listar_documentos_devuelve_fuentes_unicas_ordenadas(aura_modules, monkeypatch):
@@ -158,15 +319,12 @@ def test_eliminar_documento_elimina_ids_y_archivo(aura_modules, monkeypatch):
     with open("./pdfs/a.pdf", "w") as f:
         f.write("x")
     coleccion = MagicMock()
-    coleccion.get.return_value = {
-        "ids": ["a_chunk_0", "b_chunk_0"],
-        "metadatas": [{"fuente": "a.pdf"}, {"fuente": "b.pdf"}],
-    }
+    coleccion.get.return_value = {"ids": ["a_chunk_0"]}
     monkeypatch.setattr(dp, "coleccion", coleccion)
 
     dp.eliminar_documento("a.pdf")
 
-    coleccion.delete.assert_called_once_with(ids=["a_chunk_0"])
+    coleccion.delete.assert_called_once_with(where={"fuente": "a.pdf"})
     assert not os.path.exists("./pdfs/a.pdf")
 
 
@@ -178,25 +336,19 @@ def test_eliminar_documento_sanitiza_path_traversal(aura_modules, monkeypatch):
     with open("./pdfs/a.pdf", "w") as f:
         f.write("x")
     coleccion = MagicMock()
-    coleccion.get.return_value = {
-        "ids": ["a_chunk_0"],
-        "metadatas": [{"fuente": "a.pdf"}],
-    }
+    coleccion.get.return_value = {"ids": ["a_chunk_0"]}
     monkeypatch.setattr(dp, "coleccion", coleccion)
 
     dp.eliminar_documento("../a.pdf")
 
-    coleccion.delete.assert_called_once_with(ids=["a_chunk_0"])
+    coleccion.delete.assert_called_once_with(where={"fuente": "a.pdf"})
     assert not os.path.exists("./pdfs/a.pdf")
 
 
 def test_eliminar_documento_no_encontrado_lanza_valueerror(aura_modules, monkeypatch):
     dp = aura_modules.document_processor
     coleccion = MagicMock()
-    coleccion.get.return_value = {
-        "ids": ["b_chunk_0"],
-        "metadatas": [{"fuente": "b.pdf"}],
-    }
+    coleccion.get.return_value = {"ids": []}
     monkeypatch.setattr(dp, "coleccion", coleccion)
 
     with pytest.raises(ValueError, match="No se encontró"):

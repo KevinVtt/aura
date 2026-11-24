@@ -47,7 +47,7 @@ def test_subir_documento_pdf_valido(client, aura_modules, monkeypatch):
         procesado["ruta"] = ruta
         procesado["nombre"] = nombre
 
-    monkeypatch.setattr(aura_modules.main.dp, "procesar_pdf", fake_procesar)
+    monkeypatch.setattr(aura_modules.main.dp, "procesar_documento", fake_procesar)
 
     resp = client.post(
         "/documentos/subir",
@@ -68,7 +68,7 @@ def test_subir_documento_rechaza_no_pdf(client):
         files={"archivo": ("malware.exe", b"MZ", "application/octet-stream")},
     )
     assert resp.status_code == 400
-    assert resp.json()["detail"] == "Solo se aceptan archivos PDF."
+    assert resp.json()["detail"] == "Solo se aceptan archivos PDF, Word (.docx) o Excel (.xlsx)."
 
 
 def test_subir_documento_pdf_sin_texto_devuelve_400_con_mensaje_controlado(client, aura_modules, monkeypatch):
@@ -77,7 +77,7 @@ def test_subir_documento_pdf_sin_texto_devuelve_400_con_mensaje_controlado(clien
     def raiser(ruta, nombre):
         raise ValueError("No se pudo extraer texto del PDF.")
 
-    monkeypatch.setattr(aura_modules.main.dp, "procesar_pdf", raiser)
+    monkeypatch.setattr(aura_modules.main.dp, "procesar_documento", raiser)
 
     resp = client.post(
         "/documentos/subir",
@@ -94,7 +94,7 @@ def test_subir_documento_error_inesperado_no_filtra_detalle(client, aura_modules
     def raiser(ruta, nombre):
         raise RuntimeError("connection to 10.0.0.5:11434 refused")
 
-    monkeypatch.setattr(aura_modules.main.dp, "procesar_pdf", raiser)
+    monkeypatch.setattr(aura_modules.main.dp, "procesar_documento", raiser)
 
     resp = client.post(
         "/documentos/subir",
@@ -102,7 +102,7 @@ def test_subir_documento_error_inesperado_no_filtra_detalle(client, aura_modules
     )
 
     assert resp.status_code == 500
-    assert resp.json()["detail"] == "No se pudo procesar el PDF."
+    assert resp.json()["detail"] == "No se pudo procesar el documento."
     assert "10.0.0.5" not in resp.text
 
 
@@ -112,7 +112,7 @@ def test_subir_documento_sanitiza_path_traversal(client, aura_modules, monkeypat
     procesado = {}
     monkeypatch.setattr(
         aura_modules.main.dp,
-        "procesar_pdf",
+        "procesar_documento",
         lambda ruta, nombre: procesado.update(ruta=ruta, nombre=nombre),
     )
 
@@ -131,7 +131,7 @@ def test_subir_documento_sanitiza_path_traversal(client, aura_modules, monkeypat
 
 def test_subir_documento_rechaza_pdf_fuera_de_carpeta_con_extension_no_pdf(client, aura_modules, monkeypatch):
     """Solo se aceptan .pdf (case-insensitive); ``../evil.txt`` se rechaza."""
-    monkeypatch.setattr(aura_modules.main.dp, "procesar_pdf", lambda ruta, nombre: None)
+    monkeypatch.setattr(aura_modules.main.dp, "procesar_documento", lambda ruta, nombre: None)
 
     resp = client.post(
         "/documentos/subir",

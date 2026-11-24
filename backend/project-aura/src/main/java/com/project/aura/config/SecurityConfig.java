@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.*;
 import org.springframework.security.authentication.*;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -32,6 +33,11 @@ public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
 
+    // Misma variable que usa la IA: con otro dominio o IP, el navegador
+    // bloquea el panel si queda fijo en localhost.
+    @Value("${aura.allowed-origins:http://localhost:3000}")
+    private List<String> allowedOrigins;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -53,7 +59,6 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/login").permitAll()
-                .requestMatchers("/auth/register").hasRole("ADMIN")
                 .requestMatchers("/usuarios/**").hasRole("ADMIN")
                 .requestMatchers("/documentos/**").hasRole("ADMIN")
                 .requestMatchers("/chat/**").hasAnyRole("ADMIN", "EMPLEADO")
@@ -78,7 +83,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:3000"));
+        config.setAllowedOrigins(allowedOrigins);
         config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

@@ -11,6 +11,7 @@ import com.project.aura.repositories.DocumentoRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -30,15 +31,30 @@ public class DocumentoService {
         // 2. Registra el documento en PostgreSQL. Resubir el mismo nombre reutiliza la
         // fila activa: con dos filas, borrar una sola deja la otra apuntando a un
         // documento que la IA ya no tiene.
-        Documento documento = documentoRepository
-            .findFirstByNombreArchivoAndActivoTrue(nombreArchivo)
+        Optional<Documento> existente = documentoRepository
+            .findFirstByNombreArchivoAndActivoTrue(nombreArchivo);
+        Documento documento = existente
             .orElseGet(() -> Documento.builder().nombreArchivo(nombreArchivo).build());
 
         documento.setAdmin(admin);
         documento.setFechaSubida(LocalDateTime.now());
+        documento.setTamanoBytes((long) contenido.length);
         documento.setActivo(true);
 
-        return documentoRepository.save(documento);
+        try {
+            return documentoRepository.save(documento);
+        } catch (RuntimeException e) {
+            // Sin fila en la base el documento queda invisible e imborrable desde
+            // el panel: se deshace la indexacion. En una resubida no se toca la
+            // copia anterior, que sigue registrada.
+            if (existente.isEmpty()) {
+                try {
+                    fastAPIClient.eliminarDocumento(nombreArchivo);
+                } catch (RuntimeException ignored) {
+                }
+            }
+            throw e;
+        }
     }
 
     public void eliminar(Long id) {

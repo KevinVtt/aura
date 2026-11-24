@@ -18,9 +18,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.project.aura.exception.ApiException;
 import com.project.aura.models.Contacto;
 import com.project.aura.models.Usuario;
 import com.project.aura.models.enums.Rol;
@@ -35,6 +37,9 @@ class UsuarioServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private MailService mailService;
+
     @InjectMocks
     private UsuarioService usuarioService;
 
@@ -45,6 +50,7 @@ class UsuarioServiceTest {
         // El email del super admin llega por @Value; en un test unitario hay
         // que inyectarlo a mano.
         ReflectionTestUtils.setField(usuarioService, "adminEmail", "admin@aura.com");
+        ReflectionTestUtils.setField(usuarioService, "dominiosPermitidos", List.of("aura.com"));
         Contacto contacto = Contacto.builder().email("juan@aura.com").build();
         usuario = Usuario.builder()
             .id(1L)
@@ -68,6 +74,32 @@ class UsuarioServiceTest {
         assertTrue(resultado.getActivo());
         verify(passwordEncoder).encode("password123");
         verify(usuarioRepository).save(usuario);
+        verify(mailService).enviarAlta("juan@aura.com", "Juan", "password123");
+    }
+
+    @Test
+    void crear_sinPassword_generaUnaYObligaACambiarla() {
+        usuario.setPassword(null);
+        when(usuarioRepository.findByContactoEmail("juan@aura.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(any())).thenReturn("$2a$10$encoded");
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Usuario resultado = usuarioService.crear(usuario);
+
+        assertTrue(resultado.getMustChangePassword());
+        verify(mailService).enviarAlta(org.mockito.ArgumentMatchers.eq("juan@aura.com"),
+            org.mockito.ArgumentMatchers.eq("Juan"),
+            org.mockito.ArgumentMatchers.argThat(clave -> clave.length() == 14));
+    }
+
+    @Test
+    void crear_dominioNoPermitido_lanzaExcepcionSinGuardar() {
+        usuario.getContacto().setEmail("juan@gmail.com");
+
+        ApiException ex = assertThrows(ApiException.class, () -> usuarioService.crear(usuario));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        verify(usuarioRepository, never()).save(any());
     }
 
     @Test
@@ -180,6 +212,19 @@ class UsuarioServiceTest {
             .activo(true)
             .contacto(Contacto.builder().email("admin@aura.com").build())
             .build();
+    }
+
+    @Test
+    void cambiarPassword_conActualIncorrecta_noCambia() {
+        usuario.setMustChangePassword(true);
+        when(usuarioRepository.findByContactoEmail("juan@aura.com")).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("mal", "password123")).thenReturn(false);
+
+        assertThrows(ApiException.class,
+            () -> usuarioService.cambiarPassword("juan@aura.com", "mal", "nueva12345"));
+
+        assertTrue(usuario.getMustChangePassword());
+        verify(usuarioRepository, never()).save(any());
     }
 
     @Test

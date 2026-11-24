@@ -5,18 +5,20 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.*;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.*;
 
 import com.project.aura.dto.LoginRequest;
+import com.project.aura.dto.CambioPasswordRequest;
 import com.project.aura.dto.LoginResponse;
 import com.project.aura.jwt.JwtUtil;
-import com.project.aura.models.Contacto;
 import com.project.aura.models.Usuario;
 import com.project.aura.repositories.UsuarioRepository;
 import com.project.aura.services.UsuarioService;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
@@ -26,8 +28,8 @@ public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final UsuarioRepository usuarioRepository;
-    private final UsuarioService usuarioService;
     private final JwtUtil jwtUtil;
+    private final UsuarioService usuarioService;
 
     private final ConcurrentHashMap<String, LoginAttempt> intentos = new ConcurrentHashMap<>();
 
@@ -42,11 +44,17 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest) {
 
+        // Se normaliza igual que al crear usuarios: el login no debe fallar por
+        // una mayuscula o un espacio de mas.
+        String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
+
         // Purgar ventanas vencidas: la clave es la IP real, no un header falseable.
         Instant ahora = Instant.now();
         intentos.values().removeIf(a -> ahora.isAfter(a.expira()));
 
-        String ip = httpRequest.getRemoteAddr();
+        // La clave suma el email: detras de un proxy todos comparten IP y cinco
+        // fallos de una persona dejaban a la oficina entera sin poder entrar.
+        String ip = httpRequest.getRemoteAddr() + "|" + email;
         LoginAttempt actual = intentos.get(ip);
 
         if (actual != null && actual.count() >= MAX_INTENTOS) {
@@ -56,7 +64,7 @@ public class AuthController {
         try {
             authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                    request.getEmail(),
+                    email,
                     request.getPassword()
                 )
             );
@@ -69,7 +77,7 @@ public class AuthController {
         intentos.remove(ip);
 
         Usuario usuario = usuarioRepository
-            .findByContactoEmail(request.getEmail())
+            .findByContactoEmail(email)
             .orElseThrow();
 
         String token = jwtUtil.generarToken(
@@ -81,36 +89,18 @@ public class AuthController {
             .token(token)
             .nombre(usuario.getNombre())
             .rol(usuario.getRol().name())
+            .mustChangePassword(Boolean.TRUE.equals(usuario.getMustChangePassword()))
             .build());
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<LoginResponse> register(
-        @Valid @RequestBody Usuario request) {
+    @PostMapping("/cambiar-password")
+    public ResponseEntity<Void> cambiarPassword(
+            @Valid @RequestBody CambioPasswordRequest request,
+            Authentication autenticacion) {
 
-        Contacto contacto = Contacto.builder()
-            .email(request.getContacto().getEmail())
-            .telefono(request.getContacto().getTelefono())
-            .build();
-
-        Usuario usuario = Usuario.builder()
-            .nombre(request.getNombre())
-            .password(request.getPassword())
-            .rol(request.getRol())
-            .contacto(contacto)
-            .build();
-
-        usuarioService.crear(usuario);
-
-        String token = jwtUtil.generarToken(
-            contacto.getEmail(),
-            usuario.getRol().name()
-        );
-
-        return ResponseEntity.ok(LoginResponse.builder()
-            .token(token)
-            .nombre(usuario.getNombre())
-            .rol(usuario.getRol().name())
-            .build());
+        usuarioService.cambiarPassword(autenticacion.getName(),
+            request.getPasswordActual(), request.getPasswordNueva());
+        return ResponseEntity.noContent().build();
     }
+
 }

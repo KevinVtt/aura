@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import AdminPanel from './pages/AdminPanel';
 import Chat from './pages/Chat';
+import CambiarPassword from './pages/CambiarPassword';
 
 export default function App() {
   return (
@@ -11,6 +12,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login"    element={<Login />} />
+          <Route path="/cambiar-password" element={<CambiarPassword />} />
           <Route path="/admin"    element={
             <ProtectedRoute roles={['ADMIN']}>
               <AdminPanel />

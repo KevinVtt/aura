@@ -65,4 +65,10 @@ public class UsuarioController {
         usuarioService.cambiarRol(id, request.getRol());
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/{id}/reenviar-alta")
+    public ResponseEntity<Void> reenviarAlta(@PathVariable Long id) {
+        usuarioService.reenviarAlta(id);
+        return ResponseEntity.noContent().build();
+    }
 }

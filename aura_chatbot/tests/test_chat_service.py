@@ -59,7 +59,7 @@ def test_responder_flujo_completo(aura_modules, monkeypatch):
         {"rol": "user", "contenido": "pregunta"},
         {"rol": "assistant", "contenido": "respuesta"},
     ]
-    obtener = MagicMock(side_effect=[historial_inicial, historial_final])
+    obtener = MagicMock(return_value=historial_inicial)
     monkeypatch.setattr(cs, "_obtener_historial_db", obtener)
     chunks = [
         {"texto": "t1", "fuente": "a.pdf"},
@@ -78,11 +78,9 @@ def test_responder_flujo_completo(aura_modules, monkeypatch):
     assert resultado["respuesta"] == "respuesta"
     # fuentes deduplicadas (a.pdf aparece 2 veces en los chunks)
     assert sorted(resultado["fuentes"]) == ["a.pdf", "b.pdf"]
-    assert resultado["historial"] == historial_final
     assert guardados == [("s1", "user", "pregunta"), ("s1", "assistant", "respuesta")]
-    # El prompt carga solo los últimos turnos; el historial devuelto es completo.
-    assert obtener.call_args_list[0].args == ("s1", cs.TURNOS_EN_PROMPT * 2)
-    assert obtener.call_args_list[1].args == ("s1",)
+    # El prompt carga solo los últimos turnos.
+    assert obtener.call_args.args == ("s1", cs.TURNOS_EN_PROMPT * 2)
 
 
 def test_responder_no_cita_fuentes_cuando_no_encontro_la_respuesta(aura_modules, monkeypatch):

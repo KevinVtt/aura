@@ -19,11 +19,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.project.aura.config.TestSecurityConfig;
+import com.project.aura.exception.ApiException;
 import com.project.aura.jwt.JwtUtil;
 import com.project.aura.models.Contacto;
 import com.project.aura.models.Documento;
@@ -106,6 +108,49 @@ class DocumentoControllerTest {
 
     @Test
     @WithMockUser(username = "admin@aura.com", roles = "ADMIN")
+    void subirDocx_devuelve200() throws Exception {
+        when(usuarioRepository.findByContactoEmail("admin@aura.com")).thenReturn(Optional.of(admin()));
+        when(documentoService.subir(eq("politicas.docx"), any(byte[].class), any(Usuario.class)))
+            .thenReturn(documento());
+
+        MockMultipartFile archivo = new MockMultipartFile(
+            "archivo", "politicas.docx",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "PK\u0003\u0004 contenido falso".getBytes());
+
+        mockMvc.perform(multipart("/documentos/subir").file(archivo))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@aura.com", roles = "ADMIN")
+    void subirXlsx_devuelve200() throws Exception {
+        when(usuarioRepository.findByContactoEmail("admin@aura.com")).thenReturn(Optional.of(admin()));
+        when(documentoService.subir(eq("sueldos.xlsx"), any(byte[].class), any(Usuario.class)))
+            .thenReturn(documento());
+
+        MockMultipartFile archivo = new MockMultipartFile(
+            "archivo", "sueldos.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "PK\u0003\u0004 contenido falso".getBytes());
+
+        mockMvc.perform(multipart("/documentos/subir").file(archivo))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@aura.com", roles = "ADMIN")
+    void subirPdfConFirmaInvalida_devuelve400() throws Exception {
+        // Un ejecutable renombrado a .pdf no debe llegar a la IA.
+        MockMultipartFile archivo = new MockMultipartFile(
+            "archivo", "virus.pdf", "application/pdf", "MZ contenido".getBytes());
+
+        mockMvc.perform(multipart("/documentos/subir").file(archivo))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "admin@aura.com", roles = "ADMIN")
     void subirNoPdf_devuelve400() throws Exception {
         MockMultipartFile archivo = new MockMultipartFile(
             "archivo", "nota.txt", "text/plain", "contenido de texto".getBytes());
@@ -136,12 +181,12 @@ class DocumentoControllerTest {
 
     @Test
     @WithMockUser(username = "admin@aura.com", roles = "ADMIN")
-    void eliminar_idInexistente_devuelve400() throws Exception {
-        org.mockito.Mockito.doThrow(new RuntimeException("Documento no encontrado"))
+    void eliminar_idInexistente_devuelve404() throws Exception {
+        org.mockito.Mockito.doThrow(new ApiException(HttpStatus.NOT_FOUND, "Documento no encontrado"))
             .when(documentoService).eliminar(999L);
 
         mockMvc.perform(delete("/documentos/999"))
-            .andExpect(status().isBadRequest())
+            .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.error").value("Documento no encontrado"));
     }
 

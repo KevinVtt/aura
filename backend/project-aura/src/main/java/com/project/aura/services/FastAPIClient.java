@@ -7,6 +7,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
@@ -23,6 +24,17 @@ public class FastAPIClient {
     @Value("${fastapi.url}")
     private String fastapiUrl;
 
+    @Value("${ia.token:}")
+    private String iaToken = "";
+
+    private HttpHeaders cabeceras() {
+        HttpHeaders headers = new HttpHeaders();
+        if (!iaToken.isBlank()) {
+            headers.set("X-IA-Token", iaToken);
+        }
+        return headers;
+    }
+
     /** Lo que devuelve la IA: el texto y los documentos de los que salio. */
     public record RespuestaIA(String respuesta, List<String> fuentes) {
     }
@@ -31,6 +43,9 @@ public class FastAPIClient {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        if (!iaToken.isBlank()) {
+            headers.set("X-IA-Token", iaToken);
+        }
 
         Map<String, String> body = Map.of(
             "sesion_id", sesionId,
@@ -76,7 +91,7 @@ public class FastAPIClient {
     }
 
     public void subirDocumento(String nombreArchivo, byte[] contenido) {
-        HttpHeaders headers = new HttpHeaders();
+        HttpHeaders headers = cabeceras();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
@@ -87,14 +102,36 @@ public class FastAPIClient {
         body.add("archivo", resource);
 
         HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
-        restTemplate.postForEntity(fastapiUrl + "/documentos/subir", request, Map.class);
+        try {
+            restTemplate.postForEntity(fastapiUrl + "/documentos/subir", request, Map.class);
+        } catch (RestClientResponseException e) {
+            // La IA explica en `detail` por que no pudo (PDF escaneado, corrupto).
+            // Sin esto el usuario ve "400 Bad Request" y no se entera de nada.
+            HttpStatus status = e.getStatusCode().is4xxClientError()
+                ? HttpStatus.BAD_REQUEST
+                : HttpStatus.BAD_GATEWAY;
+            throw new ResponseStatusException(status, detalleDe(e));
+        }
     }
 
     public void limpiarHistorial(String sesionId) {
-    restTemplate.delete(fastapiUrl + "/chat/historial/" + sesionId);
-}
+        try {
+            borrar(fastapiUrl + "/chat/historial/{sesionId}", sesionId);
+        } catch (HttpClientErrorException.NotFound e) {
+            // La IA ya no tiene ese historial: la base manda.
+        }
+    }
 
     public void eliminarDocumento(String nombreArchivo) {
-        restTemplate.delete(fastapiUrl + "/documentos/" + nombreArchivo);
+        try {
+            borrar(fastapiUrl + "/documentos/{nombre}", nombreArchivo);
+        } catch (HttpClientErrorException.NotFound e) {
+            // Ya no esta en la IA (chroma_db reinstalada): se puede dar de baja igual.
+        }
+    }
+
+    private void borrar(String url, Object... variables) {
+        restTemplate.exchange(url, HttpMethod.DELETE,
+            new HttpEntity<>(cabeceras()), Void.class, variables);
     }
 }

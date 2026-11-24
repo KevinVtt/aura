@@ -29,6 +29,19 @@ def generar_embedding(texto: str) -> list[float]:
     return response["embedding"]
 
 
+def generar_embeddings(textos: list[str]) -> list[list[float]]:
+    """Embeddings de varios textos en un solo pedido.
+
+    Uno por uno costaba ~0.55 s por chunk (medido con un PDF de 300 paginas:
+    189 chunks = 104 s). En lote el costo por chunk baja mucho porque se paga
+    un solo viaje HTTP y Ollama procesa el lote de corrido.
+    """
+    response = ollama_client.embed(
+        model=EMBED_MODEL, input=textos, keep_alive=KEEP_ALIVE
+    )
+    return response["embeddings"]
+
+
 def generar_respuesta(prompt: str) -> str:
     """Respuestas con Groq (rápido). Fallback a Ollama si Groq no está disponible."""
     if GROQ_API_KEY:
@@ -41,7 +54,9 @@ def generar_respuesta(prompt: str) -> str:
                 "model": os.environ.get("GROQ_MODEL") or GROQ_MODEL,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.2,
-                "max_tokens": 300,
+                # 300 cortaba respuestas con tablas o listas a mitad de frase.
+                # Groq gratis da 6000 tokens/min: 1200 de salida deja margen.
+                "max_tokens": 1200,
                 # gpt-oss es un modelo de razonamiento: en su nivel por defecto
                 # gastaba ~107 de los 137 tokens de salida en "pensar" antes de
                 # contestar. Con "low" la mediana bajo de 691 a 551 ms y el
@@ -57,7 +72,7 @@ def generar_respuesta(prompt: str) -> str:
 
     response = ollama_client.chat(
         model=FALLBACK_CHAT_MODEL,
-        options={"temperature": 0.2, "num_predict": 300},
+        options={"temperature": 0.2, "num_predict": 1200},
         messages=[{"role": "user", "content": prompt}],
     )
     return response["message"]["content"]

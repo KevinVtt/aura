@@ -256,9 +256,9 @@ class ConversacionServiceTest {
         when(conversacionRepository.findByUsuarioIdOrderByFechaInicioDesc(1L))
             .thenReturn(List.of(conversacion));
         Mensaje primera = Mensaje.builder().id(1L).contenido("¿Cuántos días de vacaciones?")
-            .origen(Origen.EMPLEADO).timestamp(LocalDateTime.now()).build();
-        when(mensajeRepository.findFirstByConversacionIdAndOrigenOrderByTimestampAsc(1L, Origen.EMPLEADO))
-            .thenReturn(Optional.of(primera));
+            .origen(Origen.EMPLEADO).timestamp(LocalDateTime.now()).conversacion(conversacion).build();
+        when(mensajeRepository.buscarTitulos(List.of(1L), Origen.EMPLEADO))
+            .thenReturn(List.of(primera));
 
         List<Conversacion> resultado = conversacionService.listarPorUsuario(1L);
 
@@ -270,9 +270,9 @@ class ConversacionServiceTest {
         when(conversacionRepository.findByUsuarioIdOrderByFechaInicioDesc(1L))
             .thenReturn(List.of(conversacion));
         Mensaje primera = Mensaje.builder().id(1L).contenido("a".repeat(80))
-            .origen(Origen.EMPLEADO).timestamp(LocalDateTime.now()).build();
-        when(mensajeRepository.findFirstByConversacionIdAndOrigenOrderByTimestampAsc(1L, Origen.EMPLEADO))
-            .thenReturn(Optional.of(primera));
+            .origen(Origen.EMPLEADO).timestamp(LocalDateTime.now()).conversacion(conversacion).build();
+        when(mensajeRepository.buscarTitulos(List.of(1L), Origen.EMPLEADO))
+            .thenReturn(List.of(primera));
 
         String titulo = conversacionService.listarPorUsuario(1L).get(0).getTitulo();
 

@@ -4,12 +4,16 @@ import org.springframework.http.*;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.*;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final String ERROR_GENERICO = "Error interno del servidor";
 
     // Errores de validación (@Valid)
@@ -50,19 +54,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ex.getStatusCode()).body(error);
     }
 
-    // Errores de negocio (RuntimeException)
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<Map<String, String>> handleRuntimeException(
-            RuntimeException ex) {
+    // Archivo mas grande que el limite: 413 con un mensaje que se entienda
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, String>> handleMaxUploadSize(
+            MaxUploadSizeExceededException ex) {
 
         Map<String, String> error = new HashMap<>();
-        error.put("error", ex.getMessage());
-        return ResponseEntity.badRequest().body(error);
+        error.put("error", "El archivo es demasiado grande. El máximo permitido es 100 MB.");
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(error);
     }
 
     // Error inesperado: mensaje genérico, sin filtrar detalles internos
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleException(Exception ex) {
+        // Sin esto un 500 en produccion no deja ni rastro para diagnosticar.
+        log.error("Error no controlado", ex);
         Map<String, String> error = new HashMap<>();
         error.put("error", ERROR_GENERICO);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);

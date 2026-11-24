@@ -12,6 +12,10 @@ services:
     build: ./backend/project-aura
     ports:
       - "8080:8080"
+    # Todo lo del .env (IA_TOKEN, SMTP_*, ALLOWED_*): sin esto el backend no
+    # puede autenticarse contra la IA ni mandar el correo de alta.
+    env_file:
+      - .env
     environment:
       - IA_SERVICE_URL=http://ia:8000
       - DB_URL=jdbc:postgresql://db:5432/aura_db
@@ -23,8 +27,10 @@ services:
       - JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=50
     mem_limit: 768m
     depends_on:
-      - ia
-      - db
+      ia:
+        condition: service_started
+      db:
+        condition: service_healthy
 
   # El servicio IA no publica puerto: solo lo consume el backend por la red interna.
   ia:
@@ -39,8 +45,12 @@ services:
       - pdfs_data:/app/pdfs
     mem_limit: 512m
     depends_on:
-      - ollama
-      - ollama-pull
+      ollama:
+        condition: service_started
+      # Esperar a que el modelo de embeddings este descargado: si la IA arranca
+      # antes, la primera subida falla con "model not found".
+      ollama-pull:
+        condition: service_completed_successfully
 
   # Descarga el modelo de embeddings una vez por arranque; sin él la IA no puede indexar.
   ollama-pull:
@@ -79,6 +89,10 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aura_db"]
+      interval: 5s
+      retries: 10
 
 volumes:
   ollama_data:

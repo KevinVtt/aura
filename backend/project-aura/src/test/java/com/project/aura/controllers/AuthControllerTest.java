@@ -43,10 +43,10 @@ class AuthControllerTest {
     private UsuarioRepository usuarioRepository;
 
     @MockBean
-    private UsuarioService usuarioService;
+    private JwtUtil jwtUtil;
 
     @MockBean
-    private JwtUtil jwtUtil;
+    private UsuarioService usuarioService;
 
     private Usuario usuarioAdmin() {
         Contacto contacto = Contacto.builder().email("admin@aura.com").build();
@@ -58,6 +58,20 @@ class AuthControllerTest {
             .activo(true)
             .contacto(contacto)
             .build();
+    }
+
+    @Test
+    void login_normalizaElEmail() throws Exception {
+        when(authenticationManager.authenticate(any())).thenReturn(mock(Authentication.class));
+        when(usuarioRepository.findByContactoEmail("admin@aura.com")).thenReturn(Optional.of(usuarioAdmin()));
+        when(jwtUtil.generarToken("admin@aura.com", "ADMIN")).thenReturn("token-jwt");
+
+        mockMvc.perform(post("/auth/login")
+                .with(req -> { req.setRemoteAddr("10.0.0.2"); return req; })
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"Admin@AURA.com\",\"password\":\"admin123\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.token").value("token-jwt"));
     }
 
     @Test
@@ -131,6 +145,16 @@ class AuthControllerTest {
     }
 
     @Test
+    void login_emailSinDominioReal_devuelve400() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                .with(req -> { req.setRemoteAddr("10.0.0.5"); return req; })
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"otro@ejemplo\",\"password\":\"admin123\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.email").value("El email no tiene un formato válido"));
+    }
+
+    @Test
     void login_emailMalformado_devuelve400() throws Exception {
         mockMvc.perform(post("/auth/login")
                 .with(req -> { req.setRemoteAddr("10.0.0.4"); return req; })
@@ -171,40 +195,5 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"admin@aura.com\",\"password\":\"incorrecta\"}"))
             .andExpect(status().isTooManyRequests());
-    }
-
-    @Test
-    void register_admin_devuelve200ConToken() throws Exception {
-        when(usuarioService.crear(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(jwtUtil.generarToken("nuevo@aura.com", "EMPLEADO")).thenReturn("token-nuevo");
-
-        mockMvc.perform(post("/auth/register")
-                .with(user("admin@aura.com").roles("ADMIN"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"nombre\":\"Nuevo\",\"password\":\"password123\",\"rol\":\"EMPLEADO\","
-                    + "\"contacto\":{\"email\":\"nuevo@aura.com\",\"telefono\":\"1234567890\"}}"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.token").value("token-nuevo"))
-            .andExpect(jsonPath("$.nombre").value("Nuevo"))
-            .andExpect(jsonPath("$.rol").value("EMPLEADO"));
-    }
-
-    @Test
-    void register_empleado_devuelve403() throws Exception {
-        mockMvc.perform(post("/auth/register")
-                .with(user("emp@aura.com").roles("EMPLEADO"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"nombre\":\"Nuevo\",\"password\":\"password123\",\"rol\":\"EMPLEADO\","
-                    + "\"contacto\":{\"email\":\"nuevo@aura.com\"}}"))
-            .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void register_sinAutenticacion_devuelve401() throws Exception {
-        mockMvc.perform(post("/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"nombre\":\"Nuevo\",\"password\":\"password123\",\"rol\":\"EMPLEADO\","
-                    + "\"contacto\":{\"email\":\"nuevo@aura.com\"}}"))
-            .andExpect(status().isUnauthorized());
     }
 }

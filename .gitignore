@@ -14,5 +14,8 @@ data/
 historial.db
 *.db
 application.properties
+.omo/
+.playwright-mcp/
+.opencode/PROGRESS.md
 .DS_Store
 *.log

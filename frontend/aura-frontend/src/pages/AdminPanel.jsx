@@ -58,8 +58,8 @@ export default function AdminPanel() {
   const subirArchivo = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (!file.name.endsWith('.pdf')) {
-      notify('Solo se aceptan archivos PDF', 'error'); return;
+    if (!/\.(pdf|docx|xlsx)$/i.test(file.name)) {
+      notify('Solo se aceptan PDF, Word (.docx) o Excel (.xlsx)', 'error'); return;
     }
     setUploading(true);
     const formData = new FormData();
@@ -71,7 +71,7 @@ export default function AdminPanel() {
       notify('Documento subido correctamente');
       cargarDocumentos();
     } catch (err) { notify(motivo(err, 'Error al subir el documento'), 'error'); }
-    finally { setUploading(false); fileRef.current.value = ''; }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
   };
 
   const eliminarDoc = async (doc) => {
@@ -98,13 +98,14 @@ export default function AdminPanel() {
 
   const crearUsuario = async (e) => {
     e.preventDefault();
-    if (userForm.password.length < 8) {
+    if (userForm.password && userForm.password.length < 8) {
       notify('La contraseña debe tener al menos 8 caracteres', 'error'); return;
     }
     setUserLoading(true);
     try {
-      await api.post('/usuarios', userForm);
-      notify('Usuario creado correctamente');
+      const body = userForm.password ? userForm : { ...userForm, password: undefined };
+      await api.post('/usuarios', body);
+      notify('Usuario creado. Se le envió la contraseña por correo');
       setUserForm({ nombre: '', password: '', rol: 'EMPLEADO', contacto: { email: '', telefono: '' } });
       cargarUsuarios();
     } catch (err) {
@@ -127,6 +128,15 @@ export default function AdminPanel() {
       notify('Rol actualizado');
       cargarUsuarios();
     } catch (err) { notify(motivo(err, 'Error al cambiar el rol'), 'error'); }
+  };
+
+  const reenviarAlta = async (id) => {
+    if (!window.confirm('¿Generar una nueva contraseña y enviarla por correo?')) return;
+    try {
+      await api.post(`/usuarios/${id}/reenviar-alta`);
+      notify('Nueva contraseña enviada por correo');
+      cargarUsuarios();
+    } catch (err) { notify(motivo(err, 'Error al reenviar la contraseña'), 'error'); }
   };
 
   const activarUsuario = async (id) => {
@@ -179,7 +189,7 @@ export default function AdminPanel() {
               <input
                 ref={fileRef}
                 type="file"
-                accept=".pdf"
+                accept=".pdf,.docx,.xlsx"
                 onChange={subirArchivo}
                 style={{ display: 'none' }}
               />
@@ -194,7 +204,7 @@ export default function AdminPanel() {
                   <span className="upload-text">
                     Subir un documento
                     <span className="upload-hint">
-                      Solo archivos .pdf · se procesa y se indexa (puede tardar unos segundos)
+                      Solo PDF, Word (.docx) o Excel (.xlsx) · se procesa y se indexa (puede tardar unos segundos)
                     </span>
                   </span>
                   <span className="upload-btn">Elegir archivo</span>
@@ -217,12 +227,13 @@ export default function AdminPanel() {
               <div className="doc-list">
                 {documentos.map((doc) => (
                   <div key={doc.id} className="doc-item">
-                    <div className="doc-icon">PDF</div>
+                    <div className="doc-icon">{doc.nombreArchivo.split('.').pop().toUpperCase()}</div>
                     <div className="doc-info">
                       <span className="doc-name">{doc.nombreArchivo}</span>
                       <span className="doc-meta">
                         Subido el {new Date(doc.fechaSubida).toLocaleDateString('es-AR')}
                         {' · '}por {doc.admin?.nombre || 'Admin'}
+                        {doc.tamanoBytes ? ` · ${(doc.tamanoBytes / 1024 / 1024).toFixed(1)} MB` : ''}
                       </span>
                     </div>
                     <button
@@ -260,7 +271,7 @@ export default function AdminPanel() {
                 </div>
                 <div className="field">
                   <label>Contraseña</label>
-                  <input type="password" name="password" value={userForm.password} onChange={handleUserForm} placeholder="Mínimo 8 caracteres" required />
+                  <input type="password" name="password" value={userForm.password} onChange={handleUserForm} placeholder="Vacía = se genera sola (mín. 8)" />
                 </div>
                 <div className="field">
                   <label>Rol</label>
@@ -334,9 +345,14 @@ export default function AdminPanel() {
                           Super admin
                         </span>
                       ) : u.activo ? (
-                        <button className="btn-danger" onClick={() => desactivarUsuario(u.id)}>
-                          Desactivar
-                        </button>
+                        <>
+                          <button className="btn-secondary" onClick={() => reenviarAlta(u.id)}>
+                            Reenviar alta
+                          </button>
+                          <button className="btn-danger" onClick={() => desactivarUsuario(u.id)}>
+                            Desactivar
+                          </button>
+                        </>
                       ) : (
                         <button className="btn-secondary" onClick={() => activarUsuario(u.id)}>
                           Activar

@@ -1,7 +1,8 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-import shutil, os, uuid
+import secrets, shutil, os, uuid
 import sys
 
 # Windows: stdout es cp1252 y los simbolos que imprime document_processor
@@ -15,6 +16,19 @@ import document_processor as dp
 import chat_service as cs
 
 app = FastAPI(title="Aura Chatbot API")
+
+# Si esta definido, solo el backend (que manda X-IA-Token) puede usar la API.
+# Vacio = sin control, para desarrollo local.
+IA_TOKEN = os.environ.get("IA_TOKEN", "")
+
+
+@app.middleware("http")
+async def exigir_token(request: Request, call_next):
+    if IA_TOKEN and request.url.path != "/":
+        recibido = request.headers.get("x-ia-token", "")
+        if not secrets.compare_digest(recibido, IA_TOKEN):
+            return JSONResponse(status_code=401, content={"detail": "No autorizado."})
+    return await call_next(request)
 
 # Orígenes permitidos (coma separados). Default: frontend local.
 ALLOWED_ORIGINS = [
@@ -58,28 +72,35 @@ def nueva_sesion():
 
 
 @app.post("/documentos/subir")
-async def subir_documento(archivo: UploadFile = File(...)):
+def subir_documento(archivo: UploadFile = File(...)):
     """
-    Recibe un PDF, lo guarda y lo procesa (chunking + embeddings → ChromaDB).
+    Recibe un PDF, Word o Excel, lo guarda y lo procesa (chunking + embeddings → ChromaDB).
     """
     nombre = os.path.basename(archivo.filename or "")
-    if not nombre.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF.")
+    if not nombre.lower().endswith((".pdf", ".docx", ".xlsx")):
+        raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF, Word (.docx) o Excel (.xlsx).")
 
     ruta = f"./pdfs/{nombre}"
     with open(ruta, "wb") as f:
         shutil.copyfileobj(archivo.file, f)
 
+    if os.path.getsize(ruta) == 0:
+        os.remove(ruta)
+        raise HTTPException(status_code=400, detail="El archivo está vacío.")
+
     try:
-        dp.procesar_pdf(ruta, nombre)
+        aviso = dp.procesar_documento(ruta, nombre)
     except ValueError as e:
-        # Mensaje controlado de procesar_pdf (PDF sin texto extraíble): seguro de exponer.
+        # Mensaje controlado de procesar_documento (sin texto, formato viejo, dañado): seguro de exponer.
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        print(f"   [ERROR] procesar_pdf falló: {e}")
-        raise HTTPException(status_code=500, detail="No se pudo procesar el PDF.")
+        print(f"   [ERROR] procesar_documento falló: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo procesar el documento.")
 
-    return {"mensaje": f"'{nombre}' procesado correctamente."}
+    mensaje = f"'{nombre}' procesado correctamente."
+    if aviso:
+        mensaje += " " + aviso
+    return {"mensaje": mensaje}
 
 
 @app.get("/documentos")

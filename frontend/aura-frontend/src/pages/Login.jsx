@@ -16,18 +16,23 @@ export default function Login() {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+    const email = form.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Ingresá un correo válido, por ejemplo nombre@empresa.com');
+      return;
+    }
     setLoading(true);
     try {
-      const { data } = await api.post('/auth/login', form);
+      const { data } = await api.post('/auth/login', { ...form, email });
       login(data);
-      navigate(data.rol === 'ADMIN' ? '/admin' : '/chat');
+      navigate(data.mustChangePassword ? '/cambiar-password' : data.rol === 'ADMIN' ? '/admin' : '/chat');
     } catch (err) {
       // El backend responde 429 sin cuerpo al superar los 5 intentos fallidos: sin
       // este caso el mensaje seria "Credenciales incorrectas", que es falso.
       setError(
         err.response?.status === 429
           ? 'Demasiados intentos fallidos. Esperá 15 minutos e intentá de nuevo.'
-          : err.response?.data?.error || 'Credenciales incorrectas'
+          : err.response?.data?.error || err.response?.data?.email || 'Credenciales incorrectas'
       );
     } finally {
       setLoading(false);
