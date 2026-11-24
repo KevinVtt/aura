@@ -37,7 +37,6 @@ public class UsuarioController {
 
         Usuario usuario = Usuario.builder()
             .nombre(request.getNombre())
-            .password(request.getPassword())
             .rol(request.getRol())
             .contacto(contacto)
             .build();
@@ -66,9 +65,26 @@ public class UsuarioController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{id}/reenviar-alta")
-    public ResponseEntity<Void> reenviarAlta(@PathVariable Long id) {
-        usuarioService.reenviarAlta(id);
+    @GetMapping("/pendientes")
+    public ResponseEntity<List<Usuario>> pendientes() {
+        return ResponseEntity.ok(usuarioService.listarPendientes());
+    }
+
+    @PatchMapping("/{id}/aprobar")
+    public ResponseEntity<Void> aprobar(@PathVariable Long id) {
+        usuarioService.aprobar(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/rechazar")
+    public ResponseEntity<Void> rechazar(@PathVariable Long id) {
+        usuarioService.rechazar(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/reenviar-mail")
+    public ResponseEntity<Void> reenviarMail(@PathVariable Long id) {
+        usuarioService.reenviarAviso(id);
         return ResponseEntity.noContent().build();
     }
 }

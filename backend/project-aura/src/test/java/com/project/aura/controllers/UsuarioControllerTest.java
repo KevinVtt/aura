@@ -62,7 +62,7 @@ class UsuarioControllerTest {
     }
 
     private String bodyValido() {
-        return "{\"nombre\":\"Juan\",\"password\":\"password123\",\"rol\":\"EMPLEADO\","
+        return "{\"nombre\":\"Juan\",\"rol\":\"EMPLEADO\","
             + "\"contacto\":{\"email\":\"juan@aura.com\",\"telefono\":\"1234567890\"}}";
     }
 
@@ -121,17 +121,6 @@ class UsuarioControllerTest {
                     + "\"contacto\":{\"email\":\"juan@aura.com\"}}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.nombre").exists());
-    }
-
-    @Test
-    @WithMockUser(roles = "ADMIN")
-    void crear_passwordCorta_devuelve400() throws Exception {
-        mockMvc.perform(post("/usuarios")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"nombre\":\"Juan\",\"password\":\"corta\",\"rol\":\"EMPLEADO\","
-                    + "\"contacto\":{\"email\":\"juan@aura.com\"}}"))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.password").exists());
     }
 
     @Test
@@ -231,6 +220,38 @@ class UsuarioControllerTest {
                 .content("{\"rol\":\"EMPLEADO\"}"))
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.error").value("El super administrador no puede cambiar de rol"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void pendientes_devuelve200() throws Exception {
+        when(usuarioService.listarPendientes()).thenReturn(List.of(usuario()));
+        mockMvc.perform(get("/usuarios/pendientes"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].nombre").value("Juan"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void aprobar_devuelve204() throws Exception {
+        when(usuarioService.aprobar(1L)).thenReturn(usuario());
+        mockMvc.perform(patch("/usuarios/1/aprobar")).andExpect(status().isNoContent());
+        verify(usuarioService).aprobar(1L);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void rechazar_devuelve204() throws Exception {
+        when(usuarioService.rechazar(1L)).thenReturn(usuario());
+        mockMvc.perform(patch("/usuarios/1/rechazar")).andExpect(status().isNoContent());
+        verify(usuarioService).rechazar(1L);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void reenviarMail_devuelve204() throws Exception {
+        when(usuarioService.reenviarAviso(1L)).thenReturn(usuario());
+        mockMvc.perform(post("/usuarios/1/reenviar-mail")).andExpect(status().isNoContent());
     }
 
     @Test

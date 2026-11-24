@@ -2,6 +2,7 @@ package com.project.aura.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -19,12 +20,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.project.aura.exception.ApiException;
 import com.project.aura.models.Contacto;
 import com.project.aura.models.Usuario;
+import com.project.aura.models.enums.EstadoUsuario;
 import com.project.aura.models.enums.Rol;
 import com.project.aura.repositories.UsuarioRepository;
 
@@ -33,9 +34,6 @@ class UsuarioServiceTest {
 
     @Mock
     private UsuarioRepository usuarioRepository;
-
-    @Mock
-    private PasswordEncoder passwordEncoder;
 
     @Mock
     private MailService mailService;
@@ -63,33 +61,96 @@ class UsuarioServiceTest {
     }
 
     @Test
-    void crear_guardaUsuarioConPasswordEncodeadoYActivo() {
+    void crear_guardaAprobadoSinPasswordYAvisaPorCorreo() {
         when(usuarioRepository.findByContactoEmail("juan@aura.com")).thenReturn(Optional.empty());
-        when(passwordEncoder.encode("password123")).thenReturn("$2a$10$encoded");
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Usuario resultado = usuarioService.crear(usuario);
 
-        assertEquals("$2a$10$encoded", resultado.getPassword());
+        assertNull(resultado.getPassword());
+        assertEquals(EstadoUsuario.APROBADO, resultado.getEstado());
         assertTrue(resultado.getActivo());
-        verify(passwordEncoder).encode("password123");
-        verify(usuarioRepository).save(usuario);
-        verify(mailService).enviarAlta("juan@aura.com", "Juan", "password123");
+        verify(mailService).enviarAprobado("juan@aura.com", "Juan");
     }
 
     @Test
-    void crear_sinPassword_generaUnaYObligaACambiarla() {
-        usuario.setPassword(null);
+    void registrarSolicitud_creaPendienteInactivo() {
         when(usuarioRepository.findByContactoEmail("juan@aura.com")).thenReturn(Optional.empty());
-        when(passwordEncoder.encode(any())).thenReturn("$2a$10$encoded");
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Usuario resultado = usuarioService.crear(usuario);
+        Usuario resultado = usuarioService.registrarSolicitud("Juan", "juan@aura.com", "1122334455");
 
-        assertTrue(resultado.getMustChangePassword());
-        verify(mailService).enviarAlta(org.mockito.ArgumentMatchers.eq("juan@aura.com"),
-            org.mockito.ArgumentMatchers.eq("Juan"),
-            org.mockito.ArgumentMatchers.argThat(clave -> clave.length() == 14));
+        assertEquals(EstadoUsuario.PENDIENTE, resultado.getEstado());
+        assertFalse(resultado.getActivo());
+        assertEquals(Rol.EMPLEADO, resultado.getRol());
+        assertEquals("1122334455", resultado.getContacto().getTelefono());
+        verify(mailService, never()).enviarAprobado(any(), any());
+    }
+
+    @Test
+    void registrarSolicitud_yaPendiente_devuelveLaMisma() {
+        usuario.setEstado(EstadoUsuario.PENDIENTE);
+        when(usuarioRepository.findByContactoEmail("juan@aura.com")).thenReturn(Optional.of(usuario));
+
+        Usuario resultado = usuarioService.registrarSolicitud("Juan", "juan@aura.com", null);
+
+        assertEquals(1L, resultado.getId());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void registrarSolicitud_emailYaAprobado_lanzaConflict() {
+        usuario.setEstado(EstadoUsuario.APROBADO);
+        when(usuarioRepository.findByContactoEmail("juan@aura.com")).thenReturn(Optional.of(usuario));
+
+        ApiException ex = assertThrows(ApiException.class,
+            () -> usuarioService.registrarSolicitud("Juan", "juan@aura.com", null));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+    }
+
+    @Test
+    void registrarSolicitud_nombreDeGoogleDemasiadoLargo_seRecorta() {
+        when(usuarioRepository.findByContactoEmail("juan@aura.com")).thenReturn(Optional.empty());
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Usuario resultado = usuarioService.registrarSolicitud("x".repeat(300), "juan@aura.com", null);
+
+        assertEquals(100, resultado.getNombre().length());
+    }
+
+    @Test
+    void aprobar_activaYEnviaElCorreo() {
+        usuario.setEstado(EstadoUsuario.PENDIENTE);
+        usuario.setActivo(false);
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Usuario resultado = usuarioService.aprobar(1L);
+
+        assertEquals(EstadoUsuario.APROBADO, resultado.getEstado());
+        assertTrue(resultado.getActivo());
+        verify(mailService).enviarAprobado("juan@aura.com", "Juan");
+    }
+
+    @Test
+    void rechazar_marcaRechazadoEInactivo() {
+        usuario.setEstado(EstadoUsuario.PENDIENTE);
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Usuario resultado = usuarioService.rechazar(1L);
+
+        assertEquals(EstadoUsuario.RECHAZADO, resultado.getEstado());
+        assertFalse(resultado.getActivo());
+    }
+
+    @Test
+    void listarPendientes_pideSoloPendientes() {
+        when(usuarioRepository.findByEstadoOrderByNombreAsc(EstadoUsuario.PENDIENTE))
+            .thenReturn(List.of(usuario));
+
+        assertEquals(1, usuarioService.listarPendientes().size());
     }
 
     @Test
@@ -110,7 +171,6 @@ class UsuarioServiceTest {
 
         assertEquals("El email ya está registrado", ex.getMessage());
         verify(usuarioRepository, never()).save(any());
-        verify(passwordEncoder, never()).encode(any());
     }
 
     @Test
@@ -212,19 +272,6 @@ class UsuarioServiceTest {
             .activo(true)
             .contacto(Contacto.builder().email("admin@aura.com").build())
             .build();
-    }
-
-    @Test
-    void cambiarPassword_conActualIncorrecta_noCambia() {
-        usuario.setMustChangePassword(true);
-        when(usuarioRepository.findByContactoEmail("juan@aura.com")).thenReturn(Optional.of(usuario));
-        when(passwordEncoder.matches("mal", "password123")).thenReturn(false);
-
-        assertThrows(ApiException.class,
-            () -> usuarioService.cambiarPassword("juan@aura.com", "mal", "nueva12345"));
-
-        assertTrue(usuario.getMustChangePassword());
-        verify(usuarioRepository, never()).save(any());
     }
 
     @Test
