@@ -138,19 +138,25 @@ def procesar_documento(ruta: str, nombre_doc: str):
     # en silencio y la IA seguiria respondiendo con el texto viejo.
     coleccion.delete(where={"fuente": nombre_doc})
 
-    for inicio in range(0, len(chunks), LOTE):
-        lote = chunks[inicio:inicio + LOTE]
-        embeddings = generar_embeddings(lote)
-        coleccion.add(
-            ids=[f"{nombre_doc}_chunk_{inicio + i}" for i in range(len(lote))],
-            embeddings=embeddings,
-            documents=lote,
-            metadatas=[
-                {"fuente": nombre_doc, "chunk_index": inicio + i}
-                for i in range(len(lote))
-            ]
-        )
-        print(f"   -> {inicio + len(lote)}/{len(chunks)} chunks guardados")
+    try:
+        for inicio in range(0, len(chunks), LOTE):
+            lote = chunks[inicio:inicio + LOTE]
+            embeddings = generar_embeddings(lote)
+            coleccion.add(
+                ids=[f"{nombre_doc}_chunk_{inicio + i}" for i in range(len(lote))],
+                embeddings=embeddings,
+                documents=lote,
+                metadatas=[
+                    {"fuente": nombre_doc, "chunk_index": inicio + i}
+                    for i in range(len(lote))
+                ]
+            )
+            print(f"   -> {inicio + len(lote)}/{len(chunks)} chunks guardados")
+    except Exception:
+        # Ollama caido a mitad de la indexacion: sin esto queda medio documento
+        # y el bot contesta con pedazos. Se borra lo parcial y se propaga el error.
+        coleccion.delete(where={"fuente": nombre_doc})
+        raise
 
     print(f"   OK: guardado en ChromaDB")
     return aviso

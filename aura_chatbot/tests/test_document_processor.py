@@ -156,6 +156,37 @@ def test_procesar_pdf_pide_embeddings_en_lotes(aura_modules, monkeypatch):
     assert coleccion.add.call_count == 3
 
 
+def test_procesar_documento_si_falla_un_lote_no_deja_chunks_parciales(
+    aura_modules, monkeypatch
+):
+    """Ollama caido en el segundo lote: no debe quedar medio documento indexado."""
+    dp = aura_modules.document_processor
+    monkeypatch.setattr(dp, "LOTE", 2)
+    monkeypatch.setattr(
+        dp, "_extraer_texto",
+        lambda ruta: " ".join(f"palabra{i}" for i in range(dp.CHUNK_SIZE * 4)),
+    )
+    llamadas = {"n": 0}
+
+    def embeddings_que_fallan(textos):
+        llamadas["n"] += 1
+        if llamadas["n"] == 2:
+            raise RuntimeError("Ollama no responde")
+        return [[0.5] for _ in textos]
+
+    monkeypatch.setattr(dp, "generar_embeddings", embeddings_que_fallan)
+    coleccion = MagicMock()
+    monkeypatch.setattr(dp, "coleccion", coleccion)
+
+    with pytest.raises(RuntimeError):
+        dp.procesar_documento("x.pdf", "x.pdf")
+
+    # dos borrados: el de la version vieja y el de los chunks parciales
+    assert coleccion.delete.call_count == 2
+    assert coleccion.delete.call_args.kwargs == {"where": {"fuente": "x.pdf"}}
+    assert coleccion.add.call_count == 1
+
+
 def test_procesar_documento_texto_vacio_lanza_valueerror(aura_modules, monkeypatch):
     dp = aura_modules.document_processor
     monkeypatch.setattr(dp, "_extraer_texto", lambda ruta: "   ")
