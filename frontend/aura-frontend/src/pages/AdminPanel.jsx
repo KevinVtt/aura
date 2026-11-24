@@ -7,6 +7,7 @@ export default function AdminPanel() {
   const [tab, setTab] = useState('documentos');
   const [documentos, setDocumentos] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
+  const [solicitudes, setSolicitudes] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [borrando, setBorrando] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -16,7 +17,7 @@ export default function AdminPanel() {
 
   // Formulario nuevo usuario
   const [userForm, setUserForm] = useState({
-    nombre: '', password: '', rol: 'EMPLEADO',
+    nombre: '', rol: 'EMPLEADO',
     contacto: { email: '', telefono: '' }
   });
   const [userLoading, setUserLoading] = useState(false);
@@ -24,6 +25,7 @@ export default function AdminPanel() {
   useEffect(() => {
     cargarDocumentos();
     cargarUsuarios();
+    cargarSolicitudes();
   }, []);
 
   const notify = (text, type = 'success') => {
@@ -53,6 +55,13 @@ export default function AdminPanel() {
       setUsuarios(data);
     } catch { notify('Error al cargar usuarios', 'error'); }
     finally { setCargando(false); }
+  };
+
+  const cargarSolicitudes = async () => {
+    try {
+      const { data } = await api.get('/usuarios/pendientes');
+      setSolicitudes(data);
+    } catch { notify('Error al cargar solicitudes', 'error'); }
   };
 
   const subirArchivo = async (e) => {
@@ -98,15 +107,11 @@ export default function AdminPanel() {
 
   const crearUsuario = async (e) => {
     e.preventDefault();
-    if (userForm.password && userForm.password.length < 8) {
-      notify('La contraseña debe tener al menos 8 caracteres', 'error'); return;
-    }
     setUserLoading(true);
     try {
-      const body = userForm.password ? userForm : { ...userForm, password: undefined };
-      await api.post('/usuarios', body);
-      notify('Usuario creado. Se le envió la contraseña por correo');
-      setUserForm({ nombre: '', password: '', rol: 'EMPLEADO', contacto: { email: '', telefono: '' } });
+      await api.post('/usuarios', userForm);
+      notify('Usuario creado. Se le avisó por correo');
+      setUserForm({ nombre: '', rol: 'EMPLEADO', contacto: { email: '', telefono: '' } });
       cargarUsuarios();
     } catch (err) {
       notify(motivo(err, 'Error al crear usuario'), 'error');
@@ -130,13 +135,28 @@ export default function AdminPanel() {
     } catch (err) { notify(motivo(err, 'Error al cambiar el rol'), 'error'); }
   };
 
-  const reenviarAlta = async (id) => {
-    if (!window.confirm('¿Generar una nueva contraseña y enviarla por correo?')) return;
+  const reenviarMail = async (id) => {
     try {
-      await api.post(`/usuarios/${id}/reenviar-alta`);
-      notify('Nueva contraseña enviada por correo');
+      await api.post(`/usuarios/${id}/reenviar-mail`);
+      notify('Aviso enviado por correo');
+    } catch (err) { notify(motivo(err, 'Error al reenviar el aviso'), 'error'); }
+  };
+
+  const aprobarSolicitud = async (id) => {
+    try {
+      await api.patch(`/usuarios/${id}/aprobar`);
+      notify('Usuario aprobado. Se le avisó por correo');
+      cargarSolicitudes();
       cargarUsuarios();
-    } catch (err) { notify(motivo(err, 'Error al reenviar la contraseña'), 'error'); }
+    } catch (err) { notify(motivo(err, 'Error al aprobar la solicitud'), 'error'); }
+  };
+
+  const rechazarSolicitud = async (id) => {
+    try {
+      await api.patch(`/usuarios/${id}/rechazar`);
+      notify('Solicitud rechazada');
+      cargarSolicitudes();
+    } catch (err) { notify(motivo(err, 'Error al rechazar la solicitud'), 'error'); }
   };
 
   const activarUsuario = async (id) => {
@@ -178,6 +198,13 @@ export default function AdminPanel() {
           >
             Usuarios
             <span className="tab-count">{usuarios.length}</span>
+          </button>
+          <button
+            className={`tab ${tab === 'solicitudes' ? 'active' : ''}`}
+            onClick={() => setTab('solicitudes')}
+          >
+            Solicitudes
+            <span className="tab-count">{solicitudes.length}</span>
           </button>
         </div>
 
@@ -270,10 +297,6 @@ export default function AdminPanel() {
                   <input name="telefono" value={userForm.contacto.telefono} onChange={handleUserForm} placeholder="1111111111" />
                 </div>
                 <div className="field">
-                  <label>Contraseña</label>
-                  <input type="password" name="password" value={userForm.password} onChange={handleUserForm} placeholder="Vacía = se genera sola (mín. 8)" />
-                </div>
-                <div className="field">
                   <label>Rol</label>
                   <select name="rol" value={userForm.rol} onChange={handleUserForm}>
                     <option value="EMPLEADO">Empleado</option>
@@ -346,8 +369,8 @@ export default function AdminPanel() {
                         </span>
                       ) : u.activo ? (
                         <>
-                          <button className="btn-secondary" onClick={() => reenviarAlta(u.id)}>
-                            Reenviar alta
+                          <button className="btn-secondary" onClick={() => reenviarMail(u.id)}>
+                            Reenviar aviso
                           </button>
                           <button className="btn-danger" onClick={() => desactivarUsuario(u.id)}>
                             Desactivar
@@ -358,6 +381,42 @@ export default function AdminPanel() {
                           Activar
                         </button>
                       )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SOLICITUDES */}
+        {tab === 'solicitudes' && (
+          <div className="tab-content slide-in">
+            <div className="list-header">
+              <span>Solicitudes pendientes de aprobación</span>
+            </div>
+
+            {solicitudes.length === 0 ? (
+              <div className="empty-state">No hay solicitudes pendientes</div>
+            ) : (
+              <div className="doc-list">
+                {solicitudes.map((s) => (
+                  <div key={s.id} className="doc-item">
+                    <div className="doc-icon">{s.nombre?.charAt(0).toUpperCase()}</div>
+                    <div className="doc-info">
+                      <span className="doc-name">{s.nombre}</span>
+                      <span className="doc-meta">
+                        {s.contacto?.email}
+                        {s.contacto?.telefono ? ` · ${s.contacto.telefono}` : ''}
+                      </span>
+                    </div>
+                    <div className="doc-actions">
+                      <button className="btn-primary" onClick={() => aprobarSolicitud(s.id)}>
+                        Aprobar
+                      </button>
+                      <button className="btn-danger" onClick={() => rechazarSolicitud(s.id)}>
+                        Rechazar
+                      </button>
                     </div>
                   </div>
                 ))}

@@ -211,6 +211,8 @@
   color: var(--muted);
 }
 
+.doc-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
 /* Form card */
 .form-card {
   background: var(--card);
@@ -228,7 +230,7 @@
 
 .user-form {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
   gap: 12px;
   align-items: end;
 }
