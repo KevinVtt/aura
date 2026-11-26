@@ -340,4 +340,68 @@ class UsuarioServiceTest {
         assertFalse(resultado.get(0).getEsSuperAdmin());
         assertTrue(resultado.get(1).getEsSuperAdmin());
     }
+
+    @Test
+    void activar_unRechazado_loDejaAprobado() {
+        // Sin esto queda activo pero RECHAZADO: figura habilitado en el panel
+        // y Google le sigue negando la entrada.
+        usuario.setEstado(EstadoUsuario.RECHAZADO);
+        usuario.setActivo(false);
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Usuario resultado = usuarioService.activar(1L);
+
+        assertTrue(resultado.getActivo());
+        assertEquals(EstadoUsuario.APROBADO, resultado.getEstado());
+    }
+
+    @Test
+    void aprobar_sobreElSuperAdmin_lanzaExcepcion() {
+        Usuario admin = superAdmin();
+        when(usuarioRepository.findById(9L)).thenReturn(Optional.of(admin));
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+            () -> usuarioService.aprobar(9L));
+
+        assertTrue(ex.getMessage().contains("super administrador"));
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void rechazar_sobreElSuperAdmin_lanzaExcepcion() {
+        Usuario admin = superAdmin();
+        when(usuarioRepository.findById(9L)).thenReturn(Optional.of(admin));
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+            () -> usuarioService.rechazar(9L));
+
+        assertTrue(ex.getMessage().contains("super administrador"));
+        assertTrue(admin.getActivo());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void registrarSolicitud_nombreDeUnCaracter_usaElEmail() {
+        // El nombre de Google puede ser una sola letra y la columna exige 2.
+        when(usuarioRepository.findByContactoEmail("juan@aura.com")).thenReturn(Optional.empty());
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Usuario resultado = usuarioService.registrarSolicitud("A", "juan@aura.com", null);
+
+        assertEquals("juan@aura.com", resultado.getNombre());
+    }
+
+    @Test
+    void reenviarAviso_usuarioNoAprobado_lanzaConflict() {
+        usuario.setEstado(EstadoUsuario.RECHAZADO);
+        usuario.setActivo(false);
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
+
+        ApiException ex = assertThrows(ApiException.class,
+            () -> usuarioService.reenviarAviso(1L));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        verify(mailService, never()).enviarAprobado(any(), any());
+    }
 }

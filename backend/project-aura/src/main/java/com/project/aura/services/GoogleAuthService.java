@@ -36,11 +36,17 @@ public class GoogleAuthService {
         } catch (Exception e) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Token de Google inválido");
         }
+        exigirCorreoVerificado(payload);
+        return payload;
+    }
+
+    // La verificación de firma y audiencia la hace el verificador; esto es la
+    // regla propia: solo correos confirmados por Google.
+    static void exigirCorreoVerificado(GoogleIdToken.Payload payload) {
         if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
             throw new ApiException(HttpStatus.UNAUTHORIZED,
                 "El correo de Google no está verificado");
         }
-        return payload;
     }
 
     // Verifica firma, audiencia y expiracion contra las claves publicas de Google.

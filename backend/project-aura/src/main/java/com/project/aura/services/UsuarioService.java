@@ -84,8 +84,12 @@ public class UsuarioService {
             }
             throw new ApiException(HttpStatus.CONFLICT, "Ese correo ya tiene una cuenta en Aura");
         }
-        // El nombre viene de Google: puede faltar o traer mas de lo que admite la columna.
-        String nombreSolicitud = nombre == null || nombre.isBlank() ? correo : nombre;
+        // El nombre viene de Google: puede faltar, ser una sola letra o traer
+        // mas de lo que admite la columna.
+        String nombreSolicitud = nombre == null ? "" : nombre.trim();
+        if (nombreSolicitud.length() < 2) {
+            nombreSolicitud = correo;
+        }
         if (nombreSolicitud.length() > 100) {
             nombreSolicitud = nombreSolicitud.substring(0, 100);
         }
@@ -102,6 +106,10 @@ public class UsuarioService {
     @Transactional
     public Usuario aprobar(Long id) {
         Usuario usuario = buscarPorId(id);
+        if (esSuperAdmin(usuario)) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                "El super administrador no se puede aprobar ni rechazar");
+        }
         usuario.setEstado(EstadoUsuario.APROBADO);
         usuario.setActivo(true);
         Usuario guardado = usuarioRepository.save(usuario);
@@ -113,6 +121,10 @@ public class UsuarioService {
     @Transactional
     public Usuario rechazar(Long id) {
         Usuario usuario = buscarPorId(id);
+        if (esSuperAdmin(usuario)) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                "El super administrador no se puede aprobar ni rechazar");
+        }
         usuario.setEstado(EstadoUsuario.RECHAZADO);
         usuario.setActivo(false);
         return usuarioRepository.save(usuario);
@@ -121,6 +133,11 @@ public class UsuarioService {
     @Transactional
     public Usuario reenviarAviso(Long id) {
         Usuario usuario = buscarPorId(id);
+        // El mail dice que el acceso fue aprobado: no se manda a quien no lo esta.
+        if (usuario.getEstado() != null && usuario.getEstado() != EstadoUsuario.APROBADO) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                "Todavía no está aprobado: aprobalo desde Solicitudes");
+        }
         despuesDelCommit(() -> mailService.enviarAprobado(
             usuario.getContacto().getEmail(), usuario.getNombre()));
         return usuario;
@@ -165,6 +182,11 @@ public class UsuarioService {
 
     public Usuario activar(Long id) {
         Usuario usuario = buscarPorId(id);
+        // Reactivar tambien aprueba: si no, el panel lo muestra activo y Google
+        // le sigue negando la entrada.
+        if (usuario.getEstado() != null && usuario.getEstado() != EstadoUsuario.APROBADO) {
+            usuario.setEstado(EstadoUsuario.APROBADO);
+        }
         usuario.setActivo(true);
         return usuarioRepository.save(usuario);
     }
