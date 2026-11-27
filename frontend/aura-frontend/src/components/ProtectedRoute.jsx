@@ -6,8 +6,6 @@ export default function ProtectedRoute({ children, roles }) {
 
   if (!user) return <Navigate to="/login" replace />;
 
-  if (user.mustChangePassword) return <Navigate to="/cambiar-password" replace />;
-
   if (roles && !roles.includes(user.rol)) {
     return <Navigate to="/chat" replace />;
   }

@@ -2,11 +2,12 @@ package com.project.aura.services;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.project.aura.exception.ApiException;
+import com.project.aura.models.Contacto;
 import com.project.aura.models.Usuario;
+import com.project.aura.models.enums.EstadoUsuario;
 import com.project.aura.models.enums.Rol;
 import com.project.aura.repositories.UsuarioRepository;
 
@@ -15,25 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class UsuarioService {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-    // Sin caracteres ambiguos (0/O, 1/l/I) para que sea fácil de copiar del mail.
-    private static final String[] CONJUNTOS = {
-        "ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnopqrstuvwxyz", "23456789", "!@#$%&*?-_"
-    };
-
     private final UsuarioRepository usuarioRepository;
-    private final PasswordEncoder passwordEncoder;
     private final MailService mailService;
 
     // El email del super administrador: no puede cambiar de rol ni desactivarse.
@@ -52,6 +42,10 @@ public class UsuarioService {
         return usuarios;
     }
 
+    public List<Usuario> listarPendientes() {
+        return usuarioRepository.findByEstadoOrderByNombreAsc(EstadoUsuario.PENDIENTE);
+    }
+
     public Usuario buscarPorId(Long id) {
         return usuarioRepository.findById(id)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
@@ -62,44 +56,95 @@ public class UsuarioService {
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
     }
 
+    // Alta manual desde el panel: queda aprobado y entra directo con Google.
     @Transactional
     public Usuario crear(Usuario usuario) {
-        // Se guarda normalizado para que "Juan@Empresa.com " y "juan@empresa.com"
-        // sean el mismo usuario y el login no dependa de mayusculas ni espacios.
-        String email = usuario.getContacto().getEmail().trim().toLowerCase(Locale.ROOT);
+        String email = normalizarEmail(usuario.getContacto().getEmail());
         usuario.getContacto().setEmail(email);
-        if (!dominiosPermitidos.isEmpty()
-                && !dominiosPermitidos.contains(email.substring(email.indexOf('@') + 1).toLowerCase())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                "Solo se permiten correos de los dominios: " + String.join(", ", dominiosPermitidos));
-        }
         if (usuarioRepository.findByContactoEmail(email).isPresent()) {
             throw new ApiException(HttpStatus.CONFLICT, "El email ya está registrado");
         }
-        String clave = usuario.getPassword() == null || usuario.getPassword().isBlank()
-            ? generarPassword() : usuario.getPassword();
-        usuario.setPassword(passwordEncoder.encode(clave));
+        usuario.setPassword(null);
         usuario.setActivo(true);
-        usuario.setMustChangePassword(true);
+        usuario.setEstado(EstadoUsuario.APROBADO);
         Usuario guardado = usuarioRepository.save(usuario);
-        despuesDelCommit(() -> mailService.enviarAlta(email, usuario.getNombre(), clave));
+        despuesDelCommit(() -> mailService.enviarAprobado(email, usuario.getNombre()));
+        return guardado;
+    }
+
+    // Primer ingreso con Google: queda pendiente hasta que un admin lo apruebe.
+    @Transactional
+    public Usuario registrarSolicitud(String nombre, String email, String telefono) {
+        String correo = normalizarEmail(email);
+        Usuario existente = usuarioRepository.findByContactoEmail(correo).orElse(null);
+        if (existente != null) {
+            // Reintentar desde la pantalla de pendiente no duplica la solicitud.
+            if (existente.getEstado() == EstadoUsuario.PENDIENTE) {
+                return existente;
+            }
+            throw new ApiException(HttpStatus.CONFLICT, "Ese correo ya tiene una cuenta en Aura");
+        }
+        // El nombre viene de Google: puede faltar, ser una sola letra o traer
+        // mas de lo que admite la columna.
+        String nombreSolicitud = nombre == null ? "" : nombre.trim();
+        if (nombreSolicitud.length() < 2) {
+            nombreSolicitud = correo;
+        }
+        if (nombreSolicitud.length() > 100) {
+            nombreSolicitud = nombreSolicitud.substring(0, 100);
+        }
+        Usuario solicitud = Usuario.builder()
+            .nombre(nombreSolicitud)
+            .rol(Rol.EMPLEADO)
+            .activo(false)
+            .estado(EstadoUsuario.PENDIENTE)
+            .contacto(Contacto.builder().email(correo).telefono(telefono).build())
+            .build();
+        return usuarioRepository.save(solicitud);
+    }
+
+    @Transactional
+    public Usuario aprobar(Long id) {
+        Usuario usuario = buscarPorId(id);
+        if (esSuperAdmin(usuario)) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                "El super administrador no se puede aprobar ni rechazar");
+        }
+        usuario.setEstado(EstadoUsuario.APROBADO);
+        usuario.setActivo(true);
+        Usuario guardado = usuarioRepository.save(usuario);
+        despuesDelCommit(() -> mailService.enviarAprobado(
+            usuario.getContacto().getEmail(), usuario.getNombre()));
         return guardado;
     }
 
     @Transactional
-    public Usuario reenviarAlta(Long id) {
+    public Usuario rechazar(Long id) {
         Usuario usuario = buscarPorId(id);
-        String clave = generarPassword();
-        usuario.setPassword(passwordEncoder.encode(clave));
-        usuario.setMustChangePassword(true);
-        Usuario guardado = usuarioRepository.save(usuario);
-        despuesDelCommit(() -> mailService.enviarAlta(
-            usuario.getContacto().getEmail(), usuario.getNombre(), clave));
-        return guardado;
+        if (esSuperAdmin(usuario)) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                "El super administrador no se puede aprobar ni rechazar");
+        }
+        usuario.setEstado(EstadoUsuario.RECHAZADO);
+        usuario.setActivo(false);
+        return usuarioRepository.save(usuario);
+    }
+
+    @Transactional
+    public Usuario reenviarAviso(Long id) {
+        Usuario usuario = buscarPorId(id);
+        // El mail dice que el acceso fue aprobado: no se manda a quien no lo esta.
+        if (usuario.getEstado() != null && usuario.getEstado() != EstadoUsuario.APROBADO) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                "Todavía no está aprobado: aprobalo desde Solicitudes");
+        }
+        despuesDelCommit(() -> mailService.enviarAprobado(
+            usuario.getContacto().getEmail(), usuario.getNombre()));
+        return usuario;
     }
 
     /** Envia el correo recien cuando el cambio quedo guardado: si el commit
-     *  falla, nadie recibe una clave que no existe. */
+     *  falla, nadie recibe un aviso que no corresponde. */
     private void despuesDelCommit(Runnable envio) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             envio.run();
@@ -113,28 +158,16 @@ public class UsuarioService {
         });
     }
 
-    @Transactional
-    public void cambiarPassword(String email, String actual, String nueva) {
-        Usuario usuario = buscarPorEmail(email);
-        if (!passwordEncoder.matches(actual, usuario.getPassword())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "La contraseña actual no es correcta");
+    // Se guarda normalizado para que "Juan@Empresa.com " y "juan@empresa.com"
+    // sean el mismo usuario y el login no dependa de mayusculas ni espacios.
+    private String normalizarEmail(String email) {
+        String correo = email.trim().toLowerCase(Locale.ROOT);
+        if (!dominiosPermitidos.isEmpty()
+                && !dominiosPermitidos.contains(correo.substring(correo.indexOf('@') + 1))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                "Solo se permiten correos de los dominios: " + String.join(", ", dominiosPermitidos));
         }
-        usuario.setPassword(passwordEncoder.encode(nueva));
-        usuario.setMustChangePassword(false);
-        usuarioRepository.save(usuario);
-    }
-
-    private String generarPassword() {
-        List<Character> clave = new ArrayList<>();
-        for (String conjunto : CONJUNTOS) {
-            clave.add(conjunto.charAt(RANDOM.nextInt(conjunto.length())));
-        }
-        String todos = String.join("", CONJUNTOS);
-        while (clave.size() < 14) {
-            clave.add(todos.charAt(RANDOM.nextInt(todos.length())));
-        }
-        Collections.shuffle(clave, RANDOM);
-        return clave.stream().map(String::valueOf).collect(Collectors.joining());
+        return correo;
     }
 
     public Usuario desactivar(Long id) {
@@ -149,6 +182,11 @@ public class UsuarioService {
 
     public Usuario activar(Long id) {
         Usuario usuario = buscarPorId(id);
+        // Reactivar tambien aprueba: si no, el panel lo muestra activo y Google
+        // le sigue negando la entrada.
+        if (usuario.getEstado() != null && usuario.getEstado() != EstadoUsuario.APROBADO) {
+            usuario.setEstado(EstadoUsuario.APROBADO);
+        }
         usuario.setActivo(true);
         return usuarioRepository.save(usuario);
     }

@@ -22,23 +22,20 @@ public class MailService {
     @Value("${aura.login-url}")
     private String loginUrl;
 
-    public void enviarAlta(String destino, String nombre, String clave) {
+    public void enviarAprobado(String destino, String nombre) {
         SimpleMailMessage mensaje = new SimpleMailMessage();
         mensaje.setFrom("Aura <" + from + ">");
         mensaje.setTo(destino);
-        mensaje.setSubject("Tu acceso a Aura");
+        mensaje.setSubject("Tu acceso a Aura fue aprobado");
         mensaje.setText(
             "Hola " + nombre + ",\n\n" +
-            "Se creó tu cuenta en Aura.\n\n" +
-            "Usuario: " + destino + "\n" +
-            "Contraseña temporal: " + clave + "\n\n" +
-            "Ingresá en " + loginUrl + " y cambiá la contraseña al entrar por primera vez.\n");
+            "Tu acceso a Aura ya está aprobado.\n\n" +
+            "Entrá en " + loginUrl + " con «Continuar con Google» usando esta misma cuenta: " + destino + "\n");
         try {
             mailSender.send(mensaje);
         } catch (MailException e) {
-            // El alta ya quedo guardada: el admin puede reintentar sin crearla de nuevo.
             throw new ApiException(HttpStatus.BAD_GATEWAY,
-                "No se pudo enviar el correo. Usá «Reenviar alta» para intentar de nuevo.");
+                "No se pudo enviar el correo. Usá «Reenviar aviso» para intentar de nuevo.");
         }
     }
 }

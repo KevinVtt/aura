@@ -7,16 +7,14 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem('token');
     const nombre = localStorage.getItem('nombre');
     const rol = localStorage.getItem('rol');
-    const mustChangePassword = localStorage.getItem('mustChangePassword') === 'true';
-    return token ? { token, nombre, rol, mustChangePassword } : null;
+    return token ? { token, nombre, rol } : null;
   });
 
   const login = useCallback((data) => {
     localStorage.setItem('token', data.token);
     localStorage.setItem('nombre', data.nombre);
     localStorage.setItem('rol', data.rol);
-    localStorage.setItem('mustChangePassword', String(!!data.mustChangePassword));
-    setUser({ token: data.token, nombre: data.nombre, rol: data.rol, mustChangePassword: !!data.mustChangePassword });
+    setUser({ token: data.token, nombre: data.nombre, rol: data.rol });
   }, []);
 
   const logout = useCallback(() => {

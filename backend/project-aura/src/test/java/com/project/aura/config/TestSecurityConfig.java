@@ -49,7 +49,7 @@ public class TestSecurityConfig {
                 })
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/login").permitAll()
+                .requestMatchers("/auth/login", "/auth/google", "/auth/solicitud").permitAll()
                 .requestMatchers("/auth/register").hasRole("ADMIN")
                 .requestMatchers("/usuarios/**").hasRole("ADMIN")
                 .requestMatchers("/documentos/**").hasRole("ADMIN")

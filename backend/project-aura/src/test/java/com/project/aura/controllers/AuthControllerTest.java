@@ -2,6 +2,8 @@ package com.project.aura.controllers;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -15,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -22,12 +25,16 @@ import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.project.aura.config.TestSecurityConfig;
+import com.project.aura.exception.ApiException;
 import com.project.aura.jwt.JwtUtil;
 import com.project.aura.models.Contacto;
 import com.project.aura.models.Usuario;
+import com.project.aura.models.enums.EstadoUsuario;
 import com.project.aura.models.enums.Rol;
 import com.project.aura.repositories.UsuarioRepository;
+import com.project.aura.services.GoogleAuthService;
 import com.project.aura.services.UsuarioService;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 
 @WebMvcTest(AuthController.class)
 @Import(TestSecurityConfig.class)
@@ -48,6 +55,9 @@ class AuthControllerTest {
     @MockBean
     private UsuarioService usuarioService;
 
+    @MockBean
+    private GoogleAuthService googleAuthService;
+
     private Usuario usuarioAdmin() {
         Contacto contacto = Contacto.builder().email("admin@aura.com").build();
         return Usuario.builder()
@@ -58,6 +68,130 @@ class AuthControllerTest {
             .activo(true)
             .contacto(contacto)
             .build();
+    }
+
+    private GoogleIdToken.Payload payload(String email, String nombre) {
+        GoogleIdToken.Payload p = new GoogleIdToken.Payload();
+        p.setEmail(email);
+        p.setEmailVerified(true);
+        p.set("name", nombre);
+        return p;
+    }
+
+    // estado null = fila anterior a la aprobación.
+    private Usuario conEstado(String email, EstadoUsuario estado) {
+        Usuario u = usuarioAdmin();
+        u.getContacto().setEmail(email);
+        u.setEstado(estado);
+        u.setRol(Rol.EMPLEADO);
+        return u;
+    }
+
+    private Usuario aprobado(String email) { return conEstado(email, null); }
+
+    @Test
+    void google_aprobado_devuelveToken() throws Exception {
+        when(googleAuthService.verificar("id-token")).thenReturn(payload("ana@gmail.com", "Ana"));
+        when(usuarioRepository.findByContactoEmail("ana@gmail.com"))
+            .thenReturn(Optional.of(aprobado("ana@gmail.com")));
+        when(jwtUtil.generarToken("ana@gmail.com", "EMPLEADO")).thenReturn("token-jwt");
+
+        mockMvc.perform(post("/auth/google").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"idToken\":\"id-token\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.estado").value("APROBADO"))
+            .andExpect(jsonPath("$.token").value("token-jwt"));
+    }
+
+    @Test
+    void google_pendiente_noDevuelveToken() throws Exception {
+        when(googleAuthService.verificar("id-token")).thenReturn(payload("ana@gmail.com", "Ana"));
+        when(usuarioRepository.findByContactoEmail("ana@gmail.com"))
+            .thenReturn(Optional.of(conEstado("ana@gmail.com", EstadoUsuario.PENDIENTE)));
+
+        mockMvc.perform(post("/auth/google").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"idToken\":\"id-token\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.estado").value("PENDIENTE"))
+            .andExpect(jsonPath("$.token").doesNotExist());
+
+        verify(jwtUtil, never()).generarToken(any(), any());
+    }
+
+    @Test
+    void google_rechazado_noDevuelveToken() throws Exception {
+        when(googleAuthService.verificar("id-token")).thenReturn(payload("ana@gmail.com", "Ana"));
+        when(usuarioRepository.findByContactoEmail("ana@gmail.com"))
+            .thenReturn(Optional.of(conEstado("ana@gmail.com", EstadoUsuario.RECHAZADO)));
+
+        mockMvc.perform(post("/auth/google").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"idToken\":\"id-token\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.estado").value("RECHAZADO"))
+            .andExpect(jsonPath("$.token").doesNotExist());
+
+        verify(jwtUtil, never()).generarToken(any(), any());
+    }
+
+    @Test
+    void google_noRegistrado_devuelveNoRegistrado() throws Exception {
+        when(googleAuthService.verificar("id-token")).thenReturn(payload("ana@gmail.com", "Ana"));
+        when(usuarioRepository.findByContactoEmail("ana@gmail.com")).thenReturn(Optional.empty());
+
+        mockMvc.perform(post("/auth/google").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"idToken\":\"id-token\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.estado").value("NO_REGISTRADO"))
+            .andExpect(jsonPath("$.email").value("ana@gmail.com"));
+    }
+
+    @Test
+    void google_estadoNulo_entraComoAprobado() throws Exception {
+        when(googleAuthService.verificar("id-token")).thenReturn(payload("viejo@aura.com", "Viejo"));
+        when(usuarioRepository.findByContactoEmail("viejo@aura.com"))
+            .thenReturn(Optional.of(aprobado("viejo@aura.com")));
+        when(jwtUtil.generarToken("viejo@aura.com", "EMPLEADO")).thenReturn("token-jwt");
+
+        mockMvc.perform(post("/auth/google").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"idToken\":\"id-token\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.estado").value("APROBADO"));
+    }
+
+    @Test
+    void google_tokenInvalido_devuelve401() throws Exception {
+        when(googleAuthService.verificar("malo"))
+            .thenThrow(new ApiException(HttpStatus.UNAUTHORIZED, "Token de Google inválido"));
+
+        mockMvc.perform(post("/auth/google").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"idToken\":\"malo\"}"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void google_sinIdToken_devuelve400() throws Exception {
+        mockMvc.perform(post("/auth/google").contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.idToken").exists());
+    }
+
+    @Test
+    void solicitud_creaPendiente_devuelve201() throws Exception {
+        when(googleAuthService.verificar("id-token")).thenReturn(payload("ana@gmail.com", "Ana"));
+
+        mockMvc.perform(post("/auth/solicitud").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"idToken\":\"id-token\",\"telefono\":\"1122334455\"}"))
+            .andExpect(status().isCreated());
+
+        verify(usuarioService).registrarSolicitud("Ana", "ana@gmail.com", "1122334455");
+    }
+
+    @Test
+    void login_conEmailQueNoEsElSuperAdmin_devuelve403() throws Exception {
+        mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"ana@gmail.com\",\"password\":\"password123\"}"))
+            .andExpect(status().isForbidden());
     }
 
     @Test

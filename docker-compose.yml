@@ -1,7 +1,10 @@
 services:
 
   frontend:
-    build: ./frontend/aura-frontend
+    build:
+      context: ./frontend/aura-frontend
+      args:
+        REACT_APP_GOOGLE_CLIENT_ID: ${REACT_APP_GOOGLE_CLIENT_ID:-}
     ports:
       - "3000:80"
     mem_limit: 128m

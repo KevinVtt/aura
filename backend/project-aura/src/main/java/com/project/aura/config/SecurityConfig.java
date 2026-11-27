@@ -58,7 +58,7 @@ public class SecurityConfig {
                 })
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/login").permitAll()
+                .requestMatchers("/auth/login", "/auth/google", "/auth/solicitud").permitAll()
                 .requestMatchers("/usuarios/**").hasRole("ADMIN")
                 .requestMatchers("/documentos/**").hasRole("ADMIN")
                 .requestMatchers("/chat/**").hasAnyRole("ADMIN", "EMPLEADO")

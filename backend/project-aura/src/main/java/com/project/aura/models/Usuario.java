@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonProperty.Access;
 import com.project.aura.models.enums.Rol;
+import com.project.aura.models.enums.EstadoUsuario;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -41,15 +42,10 @@ public class Usuario {
     @Column(nullable = false)
     private String nombre;
 
-    @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
-    @Column(nullable = false)
+    // Solo la usa el super administrador: los usuarios de Google entran sin contraseña.
+    @Column
     @JsonProperty(access = Access.WRITE_ONLY)
     private String password;
-
-    // Fuerza el cambio de contraseña en el próximo ingreso.
-    @Column
-    @Builder.Default
-    private Boolean mustChangePassword = false;
 
     @NotNull(message = "El rol es obligatorio")
     @Enumerated(EnumType.STRING)
@@ -59,6 +55,11 @@ public class Usuario {
     @Column(nullable = false)
     @Builder.Default
     private Boolean activo = true;
+
+    // null = fila previa a la aprobación: se trata como APROBADO al iniciar sesión.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado")
+    private EstadoUsuario estado;
     
     @Valid
     @NotNull(message = "El contacto es obligatorio")

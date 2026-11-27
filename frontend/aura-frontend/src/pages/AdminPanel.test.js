@@ -27,12 +27,23 @@ function unmount(root) {
   document.body.innerHTML = '';
 }
 
-// El panel abre en la pestaña Documentos: hay que ir a Usuarios.
-async function irAUsuarios(container) {
+// El panel abre en la pestaña Documentos: hay que ir a la pestaña pedida.
+// Se busca por texto y no por posición: el panel tiene 3 pestañas.
+async function irAPestania(container, texto) {
+  const boton = [...container.querySelectorAll('.tab')]
+    .find((b) => b.textContent.includes(texto));
   act(() => {
-    container.querySelectorAll('.tab')[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    boton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
   await act(async () => {});
+}
+
+function clickBoton(container, texto) {
+  const boton = [...container.querySelectorAll('button')]
+    .find((b) => b.textContent.trim() === texto);
+  act(() => {
+    boton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
 }
 
 function empleado(extra = {}) {
@@ -57,7 +68,7 @@ describe('AdminPanel - cambio de rol', () => {
   test('el rol de un usuario se elige de una lista', async () => {
     const { container, root } = renderPanel();
     await act(async () => {});
-    await irAUsuarios(container);
+    await irAPestania(container, 'Usuarios');
 
     const select = container.querySelector('.role-select');
     expect(select).not.toBeNull();
@@ -70,7 +81,7 @@ describe('AdminPanel - cambio de rol', () => {
     api.patch.mockResolvedValue({ data: {} });
     const { container, root } = renderPanel();
     await act(async () => {});
-    await irAUsuarios(container);
+    await irAPestania(container, 'Usuarios');
 
     const select = container.querySelector('.role-select');
     const setter = Object.getOwnPropertyDescriptor(
@@ -98,7 +109,7 @@ describe('AdminPanel - cambio de rol', () => {
 
     const { container, root } = renderPanel();
     await act(async () => {});
-    await irAUsuarios(container);
+    await irAPestania(container, 'Usuarios');
 
     const fila = container.querySelector('.user-item');
     expect(fila.querySelector('.role-select')).toBeNull();
@@ -129,5 +140,59 @@ describe('AdminPanel - subida de documentos', () => {
     await act(async () => {
       resolver({ data: {} });
     });
+  });
+});
+
+describe('AdminPanel - alta de usuarios', () => {
+  test('el formulario de alta ya no pide contraseña', async () => {
+    const { container, root } = renderPanel();
+    await act(async () => {});
+    await irAPestania(container, 'Usuarios');
+
+    expect(container.querySelector('input[name="password"]')).toBeNull();
+    unmount(root);
+  });
+});
+
+describe('AdminPanel - solicitudes pendientes', () => {
+  const pendiente = {
+    id: 7, nombre: 'Ana', rol: 'EMPLEADO', activo: false,
+    contacto: { email: 'ana@aura.com', telefono: '1111111111' },
+  };
+
+  function conPendiente() {
+    api.get.mockImplementation((url) => {
+      if (url === '/usuarios/pendientes') return Promise.resolve({ data: [pendiente] });
+      return Promise.resolve({ data: [] });
+    });
+  }
+
+  test('la pestaña muestra las solicitudes y las aprueba', async () => {
+    conPendiente();
+    api.patch.mockResolvedValue({ data: {} });
+    const { container, root } = renderPanel();
+    await act(async () => {});
+    await irAPestania(container, 'Solicitudes');
+
+    expect(container.textContent).toContain('ana@aura.com');
+    clickBoton(container, 'Aprobar');
+    await act(async () => {});
+
+    expect(api.patch).toHaveBeenCalledWith('/usuarios/7/aprobar');
+    unmount(root);
+  });
+
+  test('rechazar una solicitud manda el pedido', async () => {
+    conPendiente();
+    api.patch.mockResolvedValue({ data: {} });
+    const { container, root } = renderPanel();
+    await act(async () => {});
+    await irAPestania(container, 'Solicitudes');
+
+    clickBoton(container, 'Rechazar');
+    await act(async () => {});
+
+    expect(api.patch).toHaveBeenCalledWith('/usuarios/7/rechazar');
+    unmount(root);
   });
 });

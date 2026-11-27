@@ -192,3 +192,26 @@
 }
 
 .auth-footer a:hover { text-decoration: underline; }
+
+.auth-info {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-muted, #9aa0b4);
+}
+
+.google-slot {
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+.link-admin {
+  margin-top: 1.25rem;
+  background: none;
+  border: none;
+  color: var(--text-muted, #9aa0b4);
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
+}

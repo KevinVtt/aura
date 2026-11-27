@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import com.project.aura.models.Contacto;
 import com.project.aura.models.Usuario;
+import com.project.aura.models.enums.EstadoUsuario;
 import com.project.aura.models.enums.Rol;
 import com.project.aura.repositories.UsuarioRepository;
 
@@ -51,6 +52,7 @@ public class DataInitializer implements CommandLineRunner {
                 .password(passwordEncoder.encode(adminPassword))
                 .rol(Rol.ADMIN)
                 .activo(true)
+                .estado(EstadoUsuario.APROBADO)
                 .contacto(contacto)
                 .build();
 
